@@ -37,6 +37,9 @@ impl<T: Order> Orders<T> {
         &self.items
     }
 
+    // Match order with the queue
+    // This will match the order with the front of the queue
+    // and return a vector of OrderMatch
     pub fn match_order(&mut self, result: &mut T) -> Vec<OrderMatch> {
         // Set Total Quantity
         let min_quantity = cmp::min(self.total_quantity, result.quantity());
@@ -45,16 +48,17 @@ impl<T: Order> Orders<T> {
         // Match through queue
         let mut matches: Vec<OrderMatch> = Vec::new();
         while let Some(front) = self.items.front_mut() {
-            let order_match = front.match_order(result);
+            let match_order = front.match_order(result);
 
-            if result.quantity() >= front.quantity() {
+            // Push match order
+            matches.push(match_order);
+
+            // Check if we need to remove front order
+            if front.quantity() == 0 {
                 self.items.pop_front();
-            } else {
-                front.set_quantity(front.quantity() - result.quantity());
             }
 
-            matches.push(order_match);
-
+            // If result order is fully matched, we can break
             if result.quantity() == 0 {
                 break;
             }

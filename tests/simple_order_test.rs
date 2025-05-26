@@ -1,10 +1,13 @@
 #[cfg(test)]
 mod tests {
-    use market_forge::{order::OrderSide, order_book, order_default::OrderDefault};
+    use market_forge::{order::OrderSide, order_book::OrderBook, order_default::OrderDefault};
 
     #[test]
     fn simple_order_test() {
-        let mut book = order_book::OrderBook::<OrderDefault>::new();
+        use std::mem::size_of;
+        println!("OrderBook size: {}", size_of::<OrderBook<OrderDefault>>());
+
+        let mut book = OrderBook::<OrderDefault>::new();
 
         let result = book.add(&OrderDefault::new(OrderSide::Sell, 1, 120, 2));
         println!("{:?}", result);

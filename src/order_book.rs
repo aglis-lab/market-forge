@@ -65,10 +65,46 @@ impl<T: Order> OrderBook<T> {
 
     fn match_order_side_buy(&mut self, result: &mut T) -> Vec<OrderMatch> {
         let mut order_matches: Vec<OrderMatch> = Vec::new();
-        // let mut keys_to_remove = Vec::new();
+        let mut keys_to_remove = Vec::new();
 
         for (key, orders) in self.asks.iter_mut() {
-            let is_price_match = result.is_match_price(*key);
+            let is_match_price = result.is_match_price(*key);
+
+            // Check if price no match
+            if !is_match_price {
+                break;
+            }
+
+            if is_match_price && orders.total_quantity() > 0 {
+                let val = orders.match_order(result);
+
+                // Extend Order Matches
+                order_matches.extend(val);
+
+                // Check if total quantity is 0
+                if orders.total_quantity() == 0 {
+                    keys_to_remove.push(*key);
+                }
+            }
+
+            if result.quantity() == 0 {
+                break;
+            }
+        }
+
+        for key in keys_to_remove {
+            self.asks.remove(&key);
+        }
+
+        return order_matches;
+    }
+
+    fn match_order_side_sell(&mut self, result: &mut T) -> Vec<OrderMatch> {
+        let mut order_matches: Vec<OrderMatch> = Vec::new();
+        let mut keys_to_remove = Vec::new();
+
+        for (key, orders) in self.bids.iter_mut() {
+            let is_price_match = result.is_match_price(*key.value());
 
             // Check if price no match
             if !is_price_match {
@@ -81,10 +117,10 @@ impl<T: Order> OrderBook<T> {
                 // Extend Order Matches
                 order_matches.extend(val);
 
-                // // Check if total quantity is 0
-                // if orders.total_quantity() == 0 {
-                //     keys_to_remove.push(*key);
-                // }
+                // Check if total quantity is 0
+                if orders.total_quantity() == 0 {
+                    keys_to_remove.push(*key);
+                }
             }
 
             if result.quantity() == 0 {
@@ -92,34 +128,8 @@ impl<T: Order> OrderBook<T> {
             }
         }
 
-        // for key in keys_to_remove {
-        //     self.asks.remove(&key);
-        // }
-
-        return order_matches;
-    }
-
-    fn match_order_side_sell(&mut self, result: &mut T) -> Vec<OrderMatch> {
-        let mut iter = self.bids.iter_mut();
-
-        let mut order_matches: Vec<OrderMatch> = Vec::new();
-        while let Some(next_val) = iter.next() {
-            let is_price_match = result.is_match_price(*next_val.0.value());
-
-            // Check if price no match
-            if !is_price_match {
-                break;
-            }
-
-            if is_price_match && next_val.1.total_quantity() > 0 {
-                let val = next_val.1.match_order(result);
-
-                order_matches.extend(val);
-            }
-
-            if result.quantity() == 0 {
-                break;
-            }
+        for key in keys_to_remove {
+            self.bids.remove(&key);
         }
 
         return order_matches;

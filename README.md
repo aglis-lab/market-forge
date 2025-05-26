@@ -1,6 +1,6 @@
 # Market Forge
 
-**Market Forge** is a high-performance, Rust-based matching engine inspired by [Liquibook](https://github.com/objectcomputing/liquibook), originally implemented in C++. This project aims to provide a modern, memory-safe, and efficient core for building financial exchanges and trading platforms.
+**Market Forge** is a high-performance, Rust-based matching engine. This project aims to provide a modern, memory-safe, and efficient core for building financial exchanges and trading platforms.
 
 ## 🚀 Why Market Forge?
 
@@ -19,13 +19,26 @@
 
 ## 📚 Example
 
+### Order Default Implementation
+
 ```rust
-use market_forge::{OrderBook, Order, Side};
+use market_forge::{order::OrderSide, order_book::OrderBook, order_default::OrderDefault};
 
-let mut book = OrderBook::new("BTC-USD");
+let mut book = OrderBook::<OrderDefault>::new();
 
-let order = Order::new("order-1", Side::Buy, 100, 50000);
-book.process(order);
+let order = OrderDefault::new(OrderSide::Sell, 2, 121, 5);
+let result = book.add(&order);
+```
+
+### Order Spec Implementation
+
+```rust
+use market_forge::{order::OrderSide, order_book::OrderBook, order_spec::OrderSpec};
+
+let mut book = OrderBook::<OrderSpec>::new();
+
+let order = OrderSpec::new(OrderSide::Sell, 2, 121, 5);
+let result = book.add(&order);
 ```
 
 ## 🧱 Architecture
@@ -38,6 +51,7 @@ event: Listener interfaces for fills, book changes, and more
 
 ## ✅ TODO
 
+- [ ] Slab Allocator
 - [ ] Market orders
 - [ ] IOC / FOK order support
 - [ ] Self-trade prevention
@@ -48,11 +62,3 @@ event: Listener interfaces for fills, book changes, and more
 ```bash
 cargo test
 ```
-
-## 📄 License
-
-Market Forge is open-source under the MIT License.
-
-## 🙌 Credits
-
-Inspired by Liquibook by Object Computing, Inc.

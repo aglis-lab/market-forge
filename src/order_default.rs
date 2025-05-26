@@ -1,7 +1,7 @@
 use std::cmp;
 
 use crate::{
-    order::{Order, OrderSide, Price, Quantity},
+    order::{ExecutionCondition, Order, OrderSide, Price, Quantity, TimeInForce},
     order_match::OrderMatch,
 };
 
@@ -92,5 +92,13 @@ impl Order for OrderDefault {
         };
 
         return order_match;
+    }
+
+    fn time_in_force(&self) -> TimeInForce {
+        return TimeInForce::IOC;
+    }
+
+    fn execution_condition(&self) -> ExecutionCondition {
+        return ExecutionCondition::None;
     }
 }
