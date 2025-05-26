@@ -15,7 +15,7 @@ mod tests {
     #[test]
     fn latency_order_book_test() {
         let num_to_try = 10_000_000;
-        let mut book = OrderBook::<OrderDefault>::new();
+        let mut book = OrderBook::<OrderDefault>::new(1_500_000);
         let mut timestamps = Vec::with_capacity(num_to_try + 1);
 
         // Use a fixed seed for reproducibility
@@ -35,7 +35,7 @@ mod tests {
             let order = OrderDefault::new(side, i as u64, price, qty);
 
             let now = Instant::now();
-            book.add(&order);
+            book.add(order);
             timestamps.push(now);
         }
         // Final timestamp

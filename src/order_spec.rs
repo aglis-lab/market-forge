@@ -1,4 +1,4 @@
-use crate::order::{ExecutionCondition, Order, OrderSide, OrderType, Price, Quantity, TimeInForce};
+use crate::order::{ExecutionCondition, OrderSide, OrderType, Price, Quantity, TimeInForce};
 
 pub struct OrderSpec {
     pub id: u64,

@@ -5,22 +5,12 @@ use crate::{
     order_match::OrderMatch,
 };
 
+#[derive(Debug, Clone)]
 pub struct OrderDefault {
     id: u64,
     price: Price,
     quantity: Quantity,
     order_side: OrderSide,
-}
-
-impl Clone for OrderDefault {
-    fn clone(&self) -> Self {
-        Self {
-            id: self.id.clone(),
-            price: self.price.clone(),
-            quantity: self.quantity.clone(),
-            order_side: self.order_side.clone(),
-        }
-    }
 }
 
 impl OrderDefault {
@@ -47,8 +37,8 @@ impl Order for OrderDefault {
         return self.quantity;
     }
 
-    fn order_side(&self) -> &OrderSide {
-        return &self.order_side;
+    fn order_side(&self) -> OrderSide {
+        return self.order_side;
     }
 
     fn is_buy(&self) -> bool {
@@ -59,12 +49,12 @@ impl Order for OrderDefault {
         return self.order_side == OrderSide::Sell;
     }
 
-    fn is_match_price(&self, other_price: Price) -> bool {
-        if self.is_buy() && other_price <= self.price() {
+    fn is_match_price(&self, other_price: &Price) -> bool {
+        if self.is_buy() && *other_price <= self.price() {
             return true;
         }
 
-        if self.is_sell() && other_price >= self.price() {
+        if self.is_sell() && *other_price >= self.price() {
             return true;
         }
 
@@ -75,7 +65,7 @@ impl Order for OrderDefault {
         self.quantity = new_quantity
     }
 
-    fn match_order<T: Order + Clone>(&mut self, result: &mut T) -> OrderMatch {
+    fn match_order<T: Order>(&mut self, result: &mut T) -> OrderMatch {
         let min_quantity = cmp::min(self.quantity, result.quantity());
 
         // Set Quantity both side

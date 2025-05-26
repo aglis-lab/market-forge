@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ReverseOrd<T>(T);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ReverseOrd<T>(pub T);
 
 impl<T> ReverseOrd<T> {
     pub fn new(val: T) -> Self {

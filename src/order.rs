@@ -4,16 +4,16 @@ pub trait PriceKey: Ord + Copy {}
 pub type Price = u128;
 pub type Quantity = u128;
 
-pub trait Order: Clone {
+pub trait Order {
     fn id(&self) -> u64;
     fn price(&self) -> Price;
     fn quantity(&self) -> Quantity;
     fn set_quantity(&mut self, new_quantity: Quantity);
-    fn order_side(&self) -> &OrderSide;
+    fn order_side(&self) -> OrderSide;
 
     fn is_buy(&self) -> bool;
     fn is_sell(&self) -> bool;
-    fn is_match_price(&self, other_price: Price) -> bool;
+    fn is_match_price(&self, other_price: &Price) -> bool;
 
     // Every match we produce 2 match order
     // Match order have 2 type partial order and full order
@@ -33,6 +33,12 @@ pub trait Order: Clone {
 pub enum OrderSide {
     Buy,  // Buy order
     Sell, // Sell order
+}
+
+impl OrderSide {
+    pub fn is_buy(self) -> bool {
+        return self == OrderSide::Buy;
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

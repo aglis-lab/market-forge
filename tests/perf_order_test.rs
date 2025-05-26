@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 fn run_perf_test(duration_secs: u64, num_to_try: usize) {
     println!("Trying run of {num_to_try} orders");
-    let mut book = OrderBook::<OrderDefault>::new();
+    let mut book = OrderBook::<OrderDefault>::new(45_000_000);
     let mut orders = Vec::with_capacity(num_to_try);
 
     // Use a fixed seed for reproducibility
@@ -39,7 +39,7 @@ fn run_perf_test(duration_secs: u64, num_to_try: usize) {
         if Instant::now() >= stop {
             break;
         }
-        book.add(order);
+        book.add(order.clone());
         count += 1;
     }
 
@@ -51,7 +51,7 @@ fn run_perf_test(duration_secs: u64, num_to_try: usize) {
             duration_secs,
             count as u64 / duration_secs
         );
-        let remain = book.bids().len() + book.asks().len();
+        let remain: usize = book.bids().len() + book.asks().len();
         println!("Run matched {} orders", count - remain);
     } else {
         println!(" - not enough orders");
