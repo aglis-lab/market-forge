@@ -1,12 +1,9 @@
-use std::{
-    cmp,
-    collections::{BTreeMap, BinaryHeap},
-};
+use std::cmp;
 
 use tabled::{builder::Builder, settings::Style};
 
 use crate::{
-    order::{Order, Price},
+    order::{self, Order, Price},
     order_map::OrderMap,
     order_match::OrderMatch,
     orders::Orders,
@@ -15,34 +12,13 @@ use crate::{
 
 pub struct OrderBook<T: Order> {
     order_allocator: slab::Slab<T>,
-    bids: OrderMap<ReverseOrd<Price>>,
-    asks: OrderMap<Price>,
-}
-
-// // Implementation of the `OrderBook` struct, for managing order allocation
-impl<T: Order> OrderBook<T> {
-    //     // Allocate a new order in the slab allocator
-    //     fn allocte_order(&mut self, new_order: &T) -> usize {
-    //         return self.order_allocator.insert(new_order.clone());
-    //     }
-
-    // Get an order by its ID from the slab allocator
-    fn get_mut_order(&mut self, id: usize) -> Option<&mut T> {
-        return self.order_allocator.get_mut(id);
-    }
-
-    // Get an order by its ID from the slab allocator
-    fn get_order(&self, id: usize) -> Option<&T> {
-        return self.order_allocator.get(id);
-    }
-
-    //     fn remove_order(&mut self, order_idx: usize) -> T {
-    //         return self.order_allocator.remove(order_idx);
-    //     }
+    bids: OrderMap<Price>,
+    asks: OrderMap<ReverseOrd<Price>>,
 }
 
 // Implementation of the `OrderBook` struct, for managing bids and asks
 impl<T: Order> OrderBook<T> {
+    #[inline(always)]
     pub fn new(expected_peak_order: usize) -> Self {
         return OrderBook {
             order_allocator: slab::Slab::with_capacity(expected_peak_order),
@@ -51,20 +27,22 @@ impl<T: Order> OrderBook<T> {
         };
     }
 
-    pub fn asks(&self) -> &OrderMap<Price> {
+    #[inline(always)]
+    pub fn asks(&self) -> &OrderMap<ReverseOrd<Price>> {
         return &self.asks;
     }
 
-    pub fn bids(&self) -> &OrderMap<ReverseOrd<Price>> {
+    #[inline(always)]
+    pub fn bids(&self) -> &OrderMap<Price> {
         return &self.bids;
     }
 
-    pub fn add(&mut self, new_order: T) -> Option<Vec<OrderMatch>> {
+    pub fn add(&mut self, new_order: &T) -> Option<Vec<OrderMatch>> {
         // Using slab allocator for performance
-        let order_idx = self.order_allocator.insert(new_order);
+        let order_idx = self.order_allocator.insert(new_order.clone());
 
         // Check if matched
-        let order_matches = self.process_order(order_idx);
+        let order_matches = self.process_order(order_idx, new_order);
 
         // Update Book Order
         if !self.update_book_order(order_idx) {
@@ -79,18 +57,28 @@ impl<T: Order> OrderBook<T> {
         return Some(order_matches);
     }
 
-    fn process_order(&mut self, order_idx: usize) -> Vec<OrderMatch> {
+    #[inline(always)]
+    fn process_order(&mut self, order_idx: usize, order: &T) -> Vec<OrderMatch> {
         let mut order_matches: Vec<OrderMatch> = Vec::new();
 
-        // Check if order is buy or sell
-        let result = self
-            .order_allocator
-            .get_mut(order_idx)
-            .expect("Order not found");
-        if result.is_buy() {
+        if order.is_buy() {
             loop {
                 let top_price = {
                     let peek = self.asks.peek();
+                    if peek.is_none() {
+                        break;
+                    }
+                    peek.unwrap().0
+                };
+
+                if self.match_order(order_idx, top_price, &mut order_matches) == None {
+                    break;
+                }
+            }
+        } else {
+            loop {
+                let top_price = {
+                    let peek = self.bids.peek();
                     if peek.is_none() {
                         break;
                     }
@@ -101,21 +89,27 @@ impl<T: Order> OrderBook<T> {
                     break;
                 }
             }
-        } else {
-            // for (key, orders) in self.bids.iter_mut().rev() {
-            //     if Self::match_order(key, orders, result, &mut order_matches, &mut keys_to_remove)
-            //         == None
-            //     {
-            //         break;
-            //     }
-            // }
-
-            // for key in keys_to_remove {
-            //     self.bids.remove_order(&key);
-            // }
         }
 
         return order_matches;
+    }
+
+    #[inline(always)]
+    fn is_match_price(
+        &self,
+        order_side: &order::OrderSide,
+        order_price: Price,
+        top_price: Price,
+    ) -> bool {
+        if order_side.is_buy() && order_price >= top_price {
+            return true;
+        }
+
+        if order_side.is_sell() && order_price <= top_price {
+            return true;
+        }
+
+        false
     }
 
     fn match_order(
@@ -124,11 +118,12 @@ impl<T: Order> OrderBook<T> {
         top_price: Price,
         order_matches: &mut Vec<OrderMatch>,
     ) -> Option<()> {
-        let is_match_price = self
+        let (order_side, order_price, mut order_quantity) = self
             .order_allocator
             .get(order_idx)
-            .expect("Order not found")
-            .is_match_price(&top_price);
+            .map(|o| (o.order_side(), o.price(), o.quantity()))
+            .expect("Order not found");
+        let is_match_price = self.is_match_price(&order_side, order_price, top_price);
 
         // Check if order is match price
         if !is_match_price {
@@ -136,11 +131,6 @@ impl<T: Order> OrderBook<T> {
         }
 
         // Get orders for the top price
-        let (order_side, quantity) = self
-            .order_allocator
-            .get(order_idx)
-            .map(|o| (o.order_side(), o.quantity()))
-            .unwrap();
         let orders: &mut Orders;
         if order_side.is_buy() {
             orders = self
@@ -155,19 +145,26 @@ impl<T: Order> OrderBook<T> {
         }
 
         // Set total quantity
-        let min_quantity = cmp::min(orders.total_quantity(), quantity);
-        orders.set_total_quantity(orders.total_quantity() - min_quantity);
+        let min_total_quantity = cmp::min(orders.total_quantity(), order_quantity);
+        orders.set_total_quantity(orders.total_quantity() - min_total_quantity);
 
         while orders.len() > 0 {
-            let front = orders.items().front().expect("No orders in the queue");
-
-            let (front_order, order) = self
-                .order_allocator
-                .get2_mut(front.clone(), order_idx)
-                .unwrap();
+            let front_idx = orders.items().front().unwrap().clone();
+            let (front_order, order) = self.order_allocator.get2_mut(front_idx, order_idx).unwrap();
 
             // Match the order with the front order
-            let match_result = front_order.match_order(order);
+            let min_quantity = cmp::min(front_order.quantity(), order_quantity);
+            front_order.set_quantity(front_order.quantity() - min_quantity);
+            order_quantity -= min_quantity;
+
+            // Add the match result to the order matches
+            order_matches.push(OrderMatch {
+                order_side: order.order_side(),
+                price: top_price,
+                quantity: min_quantity,
+                match_from_id: order.id(),
+                match_to_id: front_order.id(),
+            });
 
             // If the front order is fully matched, remove it from the queue
             if front_order.quantity() == 0 {
@@ -175,66 +172,47 @@ impl<T: Order> OrderBook<T> {
             }
 
             // If the result order is fully matched, return None
-            if order.quantity() == 0 {
-                return None;
+            if order_quantity == 0 {
+                break;
             }
-
-            // Add the match result to the order matches
-            order_matches.push(match_result);
         }
 
-        // Simulate removal
+        // Remove the order from the book if it has no remaining quantity
         if orders.total_quantity() == 0 {
             if order_side.is_buy() {
-                self.bids.remove_order(&ReverseOrd(top_price), &top_price);
+                self.asks.remove_order(&ReverseOrd(top_price), &top_price);
             } else {
-                self.asks.remove_order(&top_price, &top_price);
+                self.bids.remove_order(&top_price, &top_price);
             }
         }
 
-        let latest_order_quantity = self
-            .order_allocator
-            .get(order_idx)
-            .map(|o| o.quantity())
-            .unwrap();
-        if latest_order_quantity == 0 {
+        self.order_allocator
+            .get_mut(order_idx)
+            .unwrap()
+            .set_quantity(order_quantity);
+        if order_quantity == 0 {
             return None;
         }
 
         Some(())
     }
 
+    #[inline(always)]
     fn update_book_order(&mut self, order_idx: usize) -> bool {
         let order = self.order_allocator.get(order_idx).unwrap();
         if order.quantity() == 0 {
             return false;
         }
 
-        let last_orders: Option<&mut Orders>;
         if order.is_buy() {
-            self.bids.add_order(
-                &ReverseOrd::new(order.price()),
-                order.price(),
-                order_idx,
-                order.quantity(),
-            );
+            let key = &order.price();
+            self.bids
+                .add_order(key, order_idx, order.price(), order.quantity());
         } else {
+            let key = &ReverseOrd::new(order.price());
             self.asks
-                .add_order(&order.price(), order.price(), order_idx, order.quantity());
+                .add_order(key, order_idx, order.price(), order.quantity());
         }
-
-        // if last_orders.is_none() {
-        //     let mut orders = Orders::new();
-        //     orders.add(order_idx, order.quantity());
-
-        //     if order.is_buy() {
-        //         self.bids.insert(order.price(), orders);
-        //     } else {
-        //         self.asks.insert(order.price(), orders);
-        //     }
-        // } else {
-        //     last_orders.unwrap().add(order_idx, order.quantity());
-        // }
 
         return true;
     }
@@ -242,34 +220,36 @@ impl<T: Order> OrderBook<T> {
 
 impl<T: Order> std::fmt::Display for OrderBook<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        _ = writeln!(f, "Bids: {}, Asks: {}", self.bids.len(), self.asks.len());
+
         let mut builder = Builder::new();
         builder.push_record(["Bids", "Total", "Asks", "Total"]);
 
         // Reverse bids for descending order (as bid books are usually displayed)
-        let mut bids = self.bids.order_prices().iter();
-        let mut asks = self.asks.order_prices().iter();
+        let bids: Vec<_> = self.bids.order_prices().iter().collect();
+        let asks: Vec<_> = self.asks.order_prices().iter().collect();
         let max_len = bids.len().max(asks.len());
 
         for i in 0..max_len {
             let (bid_price, bid_qty) = bids
-                .nth(i)
+                .get(i)
                 .map(|p| {
-                    let o = self.bids.get_orders(&p.value()).expect("Order not found");
+                    let o = self.bids.get_orders(&p).expect("Order not found");
 
                     (
-                        p.value().to_string(),
+                        p.to_string(),
                         format!("{}({})", o.total_quantity().to_string(), o.len()),
                     )
                 })
                 .unwrap_or(("".to_string(), "".to_string()));
 
             let (ask_price, ask_qty) = asks
-                .nth(i)
+                .get(i)
                 .map(|p| {
-                    let o = self.asks.get_orders(&p).expect("Order not found");
+                    let o = self.asks.get_orders(&p.0).expect("Order not found");
 
                     (
-                        p.to_string(),
+                        p.0.to_string(),
                         format!("{}({})", o.total_quantity().to_string(), o.len()),
                     )
                 })

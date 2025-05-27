@@ -35,7 +35,7 @@ mod tests {
             let order = OrderDefault::new(side, i as u64, price, qty);
 
             let now = Instant::now();
-            book.add(order);
+            book.add(&order);
             timestamps.push(now);
         }
         // Final timestamp

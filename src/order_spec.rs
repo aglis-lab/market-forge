@@ -1,49 +1,78 @@
-use crate::order::{ExecutionCondition, OrderSide, OrderType, Price, Quantity, TimeInForce};
+use crate::order::{ExecutionCondition, Order, OrderSide, OrderType, Price, Quantity, TimeInForce};
 
+#[derive(Debug, Clone)]
 pub struct OrderSpec {
+    // Unique identifier for the order
     pub id: u64,
-    pub side: OrderSide, // Buy or Sell
+
+    // Side of the order (Buy or Sell)
+    pub order_side: OrderSide,
+
+    // Type of the order (e.g., Market, Limit, Stop)
     pub order_type: OrderType,
-    pub price: Option<Price>, // Limit price or trigger price
-    pub qty: Quantity,
-    pub remaining_qty: Quantity, // Remaining quantity to be filled
+
+    // Price of the order
+    pub price: Price,
+
+    // Quantity of the order
+    pub quantity: Quantity,
 
     // Time and execution conditions
     pub time_in_force: TimeInForce,
+
+    // Execution condition for the order
     pub execution_condition: ExecutionCondition,
 
-    // Stop / Trailing Stop
-    pub trigger_price: Option<Price>,
-    pub trail_offset: Option<Price>,
+    // Stop Price for Stop orders
+    pub trigger_price: Price,
 
-    // Internal state
-    pub active: bool,
+    // Trail offset for trailing stop orders
+    pub trail_offset: Price,
 }
 
-// impl Order for OrderSpec {
-//     fn new(
-//         id: u64,
-//         side: Side,
-//         order_type: OrderType,
-//         price: Option<f64>,
-//         qty: f64,
-//         time_in_force: TimeInForce,
-//         execution_condition: ExecutionCondition,
-//     ) -> Self {
-//         Self {
-//             id,
-//             side,
-//             order_type,
-//             price,
-//             qty,
-//             remaining_qty: qty, // Initially, remaining quantity is the same as the original quantity
-//             time_in_force,
-//             execution_condition,
-//             trigger_price: None,
-//             trail_offset: None,
-//             active: true, // Order is active when created
-//         }
-//     }
+impl Order for OrderSpec {
+    #[inline(always)]
+    fn id(&self) -> u64 {
+        self.id
+    }
 
-//     // Additional methods can be added here for order management
-// }
+    #[inline(always)]
+    fn price(&self) -> Price {
+        self.price
+    }
+
+    #[inline(always)]
+    fn quantity(&self) -> Quantity {
+        self.quantity
+    }
+
+    #[inline(always)]
+    fn set_quantity(&mut self, new_quantity: Quantity) {
+        self.quantity = new_quantity;
+    }
+
+    #[inline(always)]
+    fn order_side(&self) -> OrderSide {
+        self.order_side
+    }
+
+    #[inline(always)]
+    fn is_buy(&self) -> bool {
+        self.order_side.is_buy()
+    }
+
+    #[inline(always)]
+    fn is_sell(&self) -> bool {
+        self.order_side.is_sell()
+    }
+
+    #[inline(always)]
+    fn time_in_force(&self) -> TimeInForce {
+        self.time_in_force
+    }
+
+    #[inline(always)]
+    fn execution_condition(&self) -> ExecutionCondition {
+        self.execution_condition
+    }
+}
