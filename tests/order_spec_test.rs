@@ -113,6 +113,7 @@ mod tests {
             "IOC order should not be added to the book"
         );
 
+        println!("{}", book);
         // Matching with top asks
         _ = book.add(
             &OrderSpec::new(6, OrderSide::Buy, OrderType::Market, 118, 15)
@@ -125,9 +126,10 @@ mod tests {
                 .with_time_in_force(TimeInForce::IOC),
         );
 
+        println!("{}", book);
         let get_top_asks = {
             book.asks()
-                .get_orders(&book.asks().peek().unwrap().0)
+                .get_orders(&book.asks().peek().unwrap())
                 .iter()
                 .next()
                 .cloned()

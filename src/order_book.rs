@@ -12,8 +12,8 @@ use crate::{
 
 pub struct OrderBook<T: Order> {
     order_allocator: slab::Slab<T>,
-    bids: OrderMap<Price>,
-    asks: OrderMap<ReverseOrd<Price>>,
+    bids: OrderMap<ReverseOrd<Price>>,
+    asks: OrderMap<Price>,
 }
 
 // Implementation of the `OrderBook` struct, for managing bids and asks
@@ -32,12 +32,12 @@ impl<T: Order> OrderBook<T> {
     }
 
     #[inline(always)]
-    pub fn asks(&self) -> &OrderMap<ReverseOrd<Price>> {
+    pub fn asks(&self) -> &OrderMap<Price> {
         return &self.asks;
     }
 
     #[inline(always)]
-    pub fn bids(&self) -> &OrderMap<Price> {
+    pub fn bids(&self) -> &OrderMap<ReverseOrd<Price>> {
         return &self.bids;
     }
 
@@ -74,7 +74,7 @@ impl<T: Order> OrderBook<T> {
                     if peek.is_none() {
                         break;
                     }
-                    peek.unwrap().0
+                    *peek.unwrap()
                 };
 
                 if self.match_order(order_idx, top_price, &mut order_matches) == None {
@@ -88,7 +88,7 @@ impl<T: Order> OrderBook<T> {
                     if peek.is_none() {
                         break;
                     }
-                    *peek.unwrap()
+                    peek.unwrap().0
                 };
 
                 if self.match_order(order_idx, top_price, &mut order_matches) == None {
@@ -123,7 +123,10 @@ impl<T: Order> OrderBook<T> {
         if order_side.is_buy() {
             orders = self.asks.get_orders_mut(&top_price).unwrap();
         } else {
-            orders = self.bids.get_orders_mut(&top_price).unwrap();
+            orders = self
+                .bids
+                .get_orders_mut(&ReverseOrd::new(top_price))
+                .unwrap();
         }
 
         // Set total quantity
@@ -172,9 +175,9 @@ impl<T: Order> OrderBook<T> {
         // Remove the order from the book if it has no remaining quantity
         if orders.total_quantity() == 0 {
             if order_side.is_buy() {
-                self.asks.remove_order(&ReverseOrd(top_price), &top_price);
+                self.asks.remove_order(&top_price);
             } else {
-                self.bids.remove_order(&top_price, &top_price);
+                self.bids.remove_order(&ReverseOrd::new(top_price));
             }
         }
 
@@ -229,13 +232,11 @@ impl<T: Order> OrderBook<T> {
         }
 
         if order.is_buy() {
-            let key = &order.price();
-            self.bids
-                .add_order(key, order_idx, order.price(), order.quantity());
-        } else {
             let key = &ReverseOrd::new(order.price());
-            self.asks
-                .add_order(key, order_idx, order.price(), order.quantity());
+            self.bids.add_order(key, order_idx, order.quantity());
+        } else {
+            let key = &order.price();
+            self.asks.add_order(key, order_idx, order.quantity());
         }
 
         return true;
@@ -256,21 +257,16 @@ impl<T: Order> std::fmt::Display for OrderBook<T> {
         builder.push_record(["Bids", "Total", "Asks", "Total"]);
 
         // Reverse bids for descending order (as bid books are usually displayed)
-        let bids: Vec<_> = self.bids.order_prices().iter().collect();
-        let mut asks: Vec<_> = self.asks.order_prices().iter().collect();
+        let bids: Vec<_> = self.bids.orders().iter().collect();
+        let asks: Vec<_> = self.asks.orders().iter().collect();
         let max_len = bids.len().max(asks.len());
-
-        // Binary Heap just not sort when using iter()
-        asks.sort_by(|a, b| b.partial_cmp(a).unwrap());
 
         for i in 0..max_len {
             let (bid_price, bid_qty) = bids
                 .get(i)
-                .map(|p| {
-                    let o = self.bids.get_orders(&p).expect("Order not found");
-
+                .map(|(p, o)| {
                     (
-                        p.to_string(),
+                        p.0.to_string(),
                         format!("{}({})", o.total_quantity().to_string(), o.len()),
                     )
                 })
@@ -278,11 +274,9 @@ impl<T: Order> std::fmt::Display for OrderBook<T> {
 
             let (ask_price, ask_qty) = asks
                 .get(i)
-                .map(|p| {
-                    let o = self.asks.get_orders(&p.0).expect("Order not found");
-
+                .map(|(p, o)| {
                     (
-                        p.0.to_string(),
+                        p.to_string(),
                         format!("{}({})", o.total_quantity().to_string(), o.len()),
                     )
                 })
