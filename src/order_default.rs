@@ -58,11 +58,15 @@ impl Order for OrderDefault {
 
     #[inline(always)]
     fn time_in_force(&self) -> TimeInForce {
-        return TimeInForce::IOC;
+        return TimeInForce::GTC;
     }
 
     #[inline(always)]
     fn execution_condition(&self) -> ExecutionCondition {
         return ExecutionCondition::None;
+    }
+
+    fn set_time_in_force(&mut self, _: TimeInForce) {
+        // No-op for OrderDefault, as it always uses GTC
     }
 }

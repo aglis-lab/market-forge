@@ -30,6 +30,28 @@ pub struct OrderSpec {
     pub trail_offset: Price,
 }
 
+impl OrderSpec {
+    pub fn new(
+        id: u64,
+        order_side: OrderSide,
+        order_type: OrderType,
+        price: Price,
+        quantity: Quantity,
+    ) -> Self {
+        Self {
+            id,
+            order_side,
+            order_type,
+            price,
+            quantity,
+            trigger_price: 0,
+            trail_offset: 0,
+            time_in_force: TimeInForce::GTC, // Default to GTC
+            execution_condition: ExecutionCondition::None, // Default to None
+        }
+    }
+}
+
 impl Order for OrderSpec {
     #[inline(always)]
     fn id(&self) -> u64 {
@@ -74,5 +96,10 @@ impl Order for OrderSpec {
     #[inline(always)]
     fn execution_condition(&self) -> ExecutionCondition {
         self.execution_condition
+    }
+
+    #[inline(always)]
+    fn set_time_in_force(&mut self, time_in_force: TimeInForce) {
+        self.time_in_force = time_in_force;
     }
 }

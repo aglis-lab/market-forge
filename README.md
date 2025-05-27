@@ -57,6 +57,29 @@ event: Listener interfaces for fills, book changes, and more
 - [ ] Self-trade prevention
 - [ ] Order persistence layer
 
+## Order Type
+
+- [ ] Market
+- [ ] Limit
+- [ ] Immediate-Or-Cancel
+- [ ] Fill-Or-Kill
+- [ ] All-Or-None
+- [ ] Stop / Stop-Loss
+- [ ] Trailing Stop
+
+| Order Condition     | Crypto Exchanges  | Stock Exchanges | Notes                         |
+| ------------------- | ----------------- | --------------- | ----------------------------- |
+| Market              | ✅ Always         | ✅ Always       | Instant execution             |
+| Limit               | ✅ Always         | ✅ Always       | Goes on order book            |
+| Immediate-Or-Cancel | ✅ Supported      | ✅ Supported    | For quick partial fills       |
+| Fill-Or-Kill        | ✅ Supported      | ✅ Supported    | For guaranteed full execution |
+| All-Or-None         | ❓ Rare           | ✅ Sometimes    | Not always supported          |
+| Stop / Stop-Loss    | ✅ Common         | ✅ Common       | Risk management               |
+| Trailing Stop       | ✅ Some platforms | ✅ Some brokers | Not in all matching engines   |
+| OCO                 | ✅ Often          | ❌ Rare         | More common in crypto         |
+| Post-Only           | ✅ Yes            | ❌ Rare         | Ensures maker-only            |
+| Reduce-Only         | ✅ Derivatives    | ❌ Rare         | Risk protection in leverage   |
+
 ## 🧪 Tests
 
 ```bash

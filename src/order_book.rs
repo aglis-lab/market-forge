@@ -27,6 +27,10 @@ impl<T: Order> OrderBook<T> {
         };
     }
 
+    pub fn get_allocated_order(&self, order_id: usize) -> Option<&T> {
+        self.order_allocator.get(order_id)
+    }
+
     #[inline(always)]
     pub fn asks(&self) -> &OrderMap<ReverseOrd<Price>> {
         return &self.asks;
@@ -45,7 +49,7 @@ impl<T: Order> OrderBook<T> {
         let order_matches = self.process_order(order_idx, new_order);
 
         // Update Book Order
-        if !self.update_book_order(order_idx) {
+        if new_order.immediate_or_cancel() || !self.update_book_order(order_idx) {
             self.order_allocator.remove(order_idx);
         }
 
@@ -94,24 +98,6 @@ impl<T: Order> OrderBook<T> {
         return order_matches;
     }
 
-    #[inline(always)]
-    fn is_match_price(
-        &self,
-        order_side: &order::OrderSide,
-        order_price: Price,
-        top_price: Price,
-    ) -> bool {
-        if order_side.is_buy() && order_price >= top_price {
-            return true;
-        }
-
-        if order_side.is_sell() && order_price <= top_price {
-            return true;
-        }
-
-        false
-    }
-
     fn match_order(
         &mut self,
         order_idx: usize,
@@ -122,7 +108,7 @@ impl<T: Order> OrderBook<T> {
             .order_allocator
             .get(order_idx)
             .map(|o| (o.order_side(), o.price(), o.quantity()))
-            .expect("Order not found");
+            .unwrap();
         let is_match_price = self.is_match_price(&order_side, order_price, top_price);
 
         // Check if order is match price
@@ -133,15 +119,9 @@ impl<T: Order> OrderBook<T> {
         // Get orders for the top price
         let orders: &mut Orders;
         if order_side.is_buy() {
-            orders = self
-                .asks
-                .get_orders_mut(&top_price)
-                .expect("msg: No orders found for the top price");
+            orders = self.asks.get_orders_mut(&top_price).unwrap();
         } else {
-            orders = self
-                .bids
-                .get_orders_mut(&top_price)
-                .expect("No orders found for the top price");
+            orders = self.bids.get_orders_mut(&top_price).unwrap();
         }
 
         // Set total quantity
@@ -150,6 +130,16 @@ impl<T: Order> OrderBook<T> {
 
         while orders.len() > 0 {
             let front_idx = orders.items().front().unwrap().clone();
+
+            assert!(
+                order_quantity > 0,
+                "Order quantity should be greater than 0"
+            );
+            assert!(
+                self.order_allocator.contains(front_idx),
+                "Order allocator should contain the front index"
+            );
+
             let (front_order, order) = self.order_allocator.get2_mut(front_idx, order_idx).unwrap();
 
             // Match the order with the front order
@@ -198,7 +188,31 @@ impl<T: Order> OrderBook<T> {
     }
 
     #[inline(always)]
+    fn is_match_price(
+        &self,
+        order_side: &order::OrderSide,
+        order_price: Price,
+        top_price: Price,
+    ) -> bool {
+        if order_side.is_buy() && order_price >= top_price {
+            return true;
+        }
+
+        if order_side.is_sell() && order_price <= top_price {
+            return true;
+        }
+
+        false
+    }
+
+    #[inline(always)]
     fn update_book_order(&mut self, order_idx: usize) -> bool {
+        // GTC, Good Till Cancel Order
+        return self.update_order_good_till_cancel(order_idx);
+    }
+
+    #[inline(always)]
+    fn update_order_good_till_cancel(&mut self, order_idx: usize) -> bool {
         let order = self.order_allocator.get(order_idx).unwrap();
         if order.quantity() == 0 {
             return false;
@@ -227,8 +241,11 @@ impl<T: Order> std::fmt::Display for OrderBook<T> {
 
         // Reverse bids for descending order (as bid books are usually displayed)
         let bids: Vec<_> = self.bids.order_prices().iter().collect();
-        let asks: Vec<_> = self.asks.order_prices().iter().collect();
+        let mut asks: Vec<_> = self.asks.order_prices().iter().collect();
         let max_len = bids.len().max(asks.len());
+
+        // Binary Heap just not sort when using iter()
+        asks.sort_by(|a, b| b.partial_cmp(a).unwrap());
 
         for i in 0..max_len {
             let (bid_price, bid_qty) = bids

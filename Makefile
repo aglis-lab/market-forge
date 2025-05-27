@@ -8,4 +8,4 @@ test_release_%:
 	cargo test --release --test $*_test -- --nocapture
 
 test_%:
-	cargo test --release --test $*_test -- --nocapture
+	cargo test --test $*_test -- --nocapture

@@ -5,4 +5,4 @@ pub mod order_map;
 pub mod order_match;
 pub mod order_spec;
 pub mod orders;
-mod utils;
+pub mod utils;
