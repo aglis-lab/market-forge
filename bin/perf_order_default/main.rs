@@ -58,8 +58,7 @@ fn run_perf_test(duration_secs: u64, num_to_try: usize) {
     }
 }
 
-#[test]
-fn perf_order_book_test() {
+fn main() {
     let duration_secs = 3;
     let mut num_to_try = duration_secs * 125_000;
 

@@ -1,38 +1,110 @@
 #[cfg(test)]
 mod tests {
-    use market_forge::{order_book::OrderBook, order_spec::OrderSpec};
+    use market_forge::{
+        order::{ExecutionCondition, OrderSide, OrderType, TimeInForce},
+        order_book::OrderBook,
+        order_spec::OrderSpec,
+    };
 
     #[test]
     fn order_spec_test() {
         use std::mem::size_of;
-        println!("OrderBook size: {} bytes", size_of::<OrderSpec>());
+        println!("OrderSpec size: {} bytes", size_of::<OrderSpec>());
 
-        //     let mut book = OrderBook::<OrderSpec>::new();
+        let mut book = OrderBook::<OrderSpec>::new(100);
 
-        //     let result = book.add(&OrderDefault::new(OrderSide::Sell, 1, 120, 2));
-        //     println!("{:?}", result);
+        _ = book.add(&OrderSpec {
+            id: 1,
+            price: 121,
+            quantity: 12,
+            order_side: OrderSide::Sell,
+            order_type: OrderType::Market,
+            time_in_force: TimeInForce::None,
+            execution_condition: ExecutionCondition::None,
+            trigger_price: 0,
+            trail_offset: 0,
+        });
+        _ = book.add(&OrderSpec {
+            id: 2,
+            price: 120,
+            quantity: 8,
+            order_side: OrderSide::Sell,
+            order_type: OrderType::Market,
+            time_in_force: TimeInForce::None,
+            execution_condition: ExecutionCondition::None,
+            trigger_price: 0,
+            trail_offset: 0,
+        });
+        _ = book.add(&OrderSpec {
+            id: 3,
+            price: 120,
+            quantity: 2,
+            order_side: OrderSide::Sell,
+            order_type: OrderType::Market,
+            time_in_force: TimeInForce::None,
+            execution_condition: ExecutionCondition::None,
+            trigger_price: 0,
+            trail_offset: 0,
+        });
+        _ = book.add(&OrderSpec {
+            id: 4,
+            price: 118,
+            quantity: 5,
+            order_side: OrderSide::Sell,
+            order_type: OrderType::Market,
+            time_in_force: TimeInForce::None,
+            execution_condition: ExecutionCondition::None,
+            trigger_price: 0,
+            trail_offset: 0,
+        });
+        println!("{}\n", book);
 
-        //     let result = book.add(&OrderDefault::new(OrderSide::Sell, 2, 121, 5));
-        //     println!("{:?}", result);
+        _ = book.add(&OrderSpec {
+            id: 5,
+            price: 111,
+            quantity: 2,
+            order_side: OrderSide::Buy,
+            order_type: OrderType::Market,
+            time_in_force: TimeInForce::None,
+            execution_condition: ExecutionCondition::None,
+            trigger_price: 0,
+            trail_offset: 0,
+        });
+        _ = book.add(&OrderSpec {
+            id: 6,
+            price: 118,
+            quantity: 15,
+            order_side: OrderSide::Buy,
+            order_type: OrderType::Market,
+            time_in_force: TimeInForce::None,
+            execution_condition: ExecutionCondition::None,
+            trigger_price: 0,
+            trail_offset: 0,
+        });
+        _ = book.add(&OrderSpec {
+            id: 7,
+            price: 122,
+            quantity: 10,
+            order_side: OrderSide::Buy,
+            order_type: OrderType::Market,
+            time_in_force: TimeInForce::None,
+            execution_condition: ExecutionCondition::None,
+            trigger_price: 0,
+            trail_offset: 0,
+        });
+        println!("{}\n", book);
 
-        //     let result = book.add(&OrderDefault::new(OrderSide::Sell, 3, 121, 12));
-        //     println!("{:?}", result);
-
-        //     let result = book.add(&OrderDefault::new(OrderSide::Sell, 4, 123, 8));
-        //     println!("{:?}", result);
-
-        //     let result = book.add(&OrderDefault::new(OrderSide::Buy, 5, 111, 2));
-        //     println!("{:?}", result);
-
-        //     let result = book.add(&OrderDefault::new(OrderSide::Buy, 6, 118, 15));
-        //     println!("{:?}", result);
-
-        //     let result = book.add(&OrderDefault::new(OrderSide::Buy, 7, 122, 10));
-        //     println!("{:?}", result);
-
-        //     let result = book.add(&OrderDefault::new(OrderSide::Sell, 8, 118, 15));
-        //     println!("{:?}", result);
-
-        //     println!("{}", book)
+        _ = book.add(&OrderSpec {
+            id: 8,
+            price: 118,
+            quantity: 15,
+            order_side: OrderSide::Sell,
+            order_type: OrderType::Market,
+            time_in_force: TimeInForce::None,
+            execution_condition: ExecutionCondition::None,
+            trigger_price: 0,
+            trail_offset: 0,
+        });
+        println!("{}\n", book)
     }
 }

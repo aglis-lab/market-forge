@@ -1,5 +1,3 @@
-use crate::order_match::OrderMatch;
-
 pub trait PriceKey: Ord + Copy {}
 pub type Price = u128;
 pub type Quantity = u128;
@@ -9,16 +7,10 @@ pub trait Order: Clone {
     fn price(&self) -> Price;
     fn quantity(&self) -> Quantity;
     fn set_quantity(&mut self, new_quantity: Quantity);
-    fn order_side(&self) -> &OrderSide;
+    fn order_side(&self) -> OrderSide;
 
     fn is_buy(&self) -> bool;
     fn is_sell(&self) -> bool;
-    fn is_match_price(&self, other_price: Price) -> bool;
-
-    // Every match we produce 2 match order
-    // Match order have 2 type partial order and full order
-    // We also return new order with quantity subtract from other quantity
-    fn match_order<T: Order>(&mut self, other: &mut T) -> OrderMatch;
 
     // Time Force & Execution Condition
     fn time_in_force(&self) -> TimeInForce;
@@ -35,11 +27,24 @@ pub enum OrderSide {
     Sell, // Sell order
 }
 
+impl OrderSide {
+    #[inline(always)]
+    pub fn is_buy(self) -> bool {
+        return self == OrderSide::Buy;
+    }
+
+    #[inline(always)]
+    pub fn is_sell(self) -> bool {
+        return self == OrderSide::Sell;
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TimeInForce {
-    GTC, // Good till cancel
-    IOC, // Immediate or cancel
-    FOK, // Fill or kill
+    None, // No time in force
+    GTC,  // Good till cancel
+    IOC,  // Immediate or cancel
+    FOK,  // Fill or kill
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
