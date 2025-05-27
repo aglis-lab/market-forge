@@ -51,7 +51,7 @@ event: Listener interfaces for fills, book changes, and more
 
 ## ✅ TODO
 
-- [ ] Slab Allocator
+- [x] Slab Allocator (using hashmap and binaryheap for order book)
 - [ ] Market orders
 - [ ] IOC / FOK order support
 - [ ] Self-trade prevention
