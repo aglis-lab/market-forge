@@ -24,22 +24,38 @@ pub trait Order: Clone {
     fn execution_condition(&self) -> ExecutionCondition;
 
     // Order Side
+    #[inline(always)]
     fn is_buy(&self) -> bool {
         return self.order_side().is_buy();
     }
 
+    #[inline(always)]
     fn is_sell(&self) -> bool {
         return self.order_side().is_sell();
     }
 
     // Good Till Cancel
+    #[inline(always)]
     fn good_till_cancel(&self) -> bool {
         return self.time_in_force() == TimeInForce::GTC;
     }
 
-    // Order Type
-    fn immediate_or_cancel(&self) -> bool {
+    // should not lived at slab allocator because we discard the order from the system immediately
+    #[inline(always)]
+    fn is_ephemeral_order(&self) -> bool {
+        return self.is_immediate_or_cancel() || self.is_full_or_cancel();
+    }
+
+    // is immediate or cancel
+    #[inline(always)]
+    fn is_immediate_or_cancel(&self) -> bool {
         return self.time_in_force() == TimeInForce::IOC;
+    }
+
+    // is fill or kill
+    #[inline(always)]
+    fn is_full_or_cancel(&self) -> bool {
+        return self.time_in_force() == TimeInForce::FOK;
     }
 }
 

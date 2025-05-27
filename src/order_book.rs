@@ -41,15 +41,17 @@ impl<T: Order> OrderBook<T> {
         return &self.bids;
     }
 
-    pub fn add(&mut self, new_order: &T) -> Option<Vec<OrderMatch>> {
+    pub fn add(&mut self, order: &T) -> Option<Vec<OrderMatch>> {
         // Using slab allocator for performance
-        let order_idx = self.order_allocator.insert(new_order.clone());
+        let order_idx = self.order_allocator.insert(order.clone());
 
         // Check if matched
-        let order_matches = self.process_order(order_idx, new_order);
+        let order_matches = self.process_order(order_idx, order);
 
         // Update Book Order
-        if new_order.immediate_or_cancel() || !self.update_book_order(order_idx) {
+        if order.is_ephemeral_order() {
+            self.order_allocator.remove(order_idx);
+        } else if !self.update_book_order(order_idx) {
             self.order_allocator.remove(order_idx);
         }
 
@@ -158,7 +160,7 @@ impl<T: Order> OrderBook<T> {
 
             // If the front order is fully matched, remove it from the queue
             if front_order.quantity() == 0 {
-                orders.pop_front();
+                Self::pop_front_fully_matched_order(&mut self.order_allocator, orders);
             }
 
             // If the result order is fully matched, return None
@@ -185,6 +187,14 @@ impl<T: Order> OrderBook<T> {
         }
 
         Some(())
+    }
+
+    #[inline(always)]
+    fn pop_front_fully_matched_order(allocator: &mut slab::Slab<T>, orders: &mut Orders) {
+        let order_idx = orders.pop_front();
+
+        // Remove the order from the allocator
+        allocator.remove(order_idx.unwrap());
     }
 
     #[inline(always)]
@@ -234,7 +244,13 @@ impl<T: Order> OrderBook<T> {
 
 impl<T: Order> std::fmt::Display for OrderBook<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        _ = writeln!(f, "Bids: {}, Asks: {}", self.bids.len(), self.asks.len());
+        _ = writeln!(
+            f,
+            "Bids: {}, Asks: {}, Alloc: {}",
+            self.bids.len(),
+            self.asks.len(),
+            self.order_allocator.len()
+        );
 
         let mut builder = Builder::new();
         builder.push_record(["Bids", "Total", "Asks", "Total"]);

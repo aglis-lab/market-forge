@@ -144,5 +144,7 @@ mod tests {
             2,
             "Asks should have two orders after matching"
         );
+
+        println!("{}", book)
     }
 }

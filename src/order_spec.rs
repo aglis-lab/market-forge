@@ -31,6 +31,7 @@ pub struct OrderSpec {
 }
 
 impl OrderSpec {
+    #[inline(always)]
     pub fn new(
         id: u64,
         order_side: OrderSide,

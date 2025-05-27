@@ -15,4 +15,4 @@ strip = true
 
 [[bin]]
 name = "perf_order_default"
-path = "bin/perf_order_default/main.rs"
+path = "examples/perf_order_default/main.rs"
