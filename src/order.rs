@@ -1,6 +1,14 @@
-pub trait PriceKey: Ord + Copy {}
+use crate::order_map::OrderMapKey;
+
 pub type Price = u128;
 pub type Quantity = u128;
+
+impl OrderMapKey for Price {
+    #[inline(always)]
+    fn to_price(&self) -> Price {
+        *self
+    }
+}
 
 pub trait Order: Clone {
     fn id(&self) -> u64;

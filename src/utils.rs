@@ -1,7 +1,16 @@
 use std::{cmp::Ordering, fmt::Display};
 
+use crate::{order::Price, order_map::OrderMapKey};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ReverseOrd<T: Display>(pub T);
+
+impl OrderMapKey for ReverseOrd<Price> {
+    #[inline(always)]
+    fn to_price(&self) -> Price {
+        self.0
+    }
+}
 
 impl<T: Display> ReverseOrd<T> {
     #[inline(always)]

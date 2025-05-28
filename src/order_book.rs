@@ -3,7 +3,7 @@ use std::cmp;
 use tabled::{builder::Builder, settings::Style};
 
 use crate::{
-    order::{self, Order, Price},
+    order::{self, Order, Price, Quantity},
     order_map::OrderMap,
     order_match::OrderMatch,
     orders::Orders,
@@ -63,37 +63,24 @@ impl<T: Order> OrderBook<T> {
         return Some(order_matches);
     }
 
-    #[inline(always)]
     fn process_order(&mut self, order_idx: usize, order: &T) -> Vec<OrderMatch> {
         let mut order_matches: Vec<OrderMatch> = Vec::new();
 
-        if order.is_buy() {
-            loop {
-                let top_price = {
-                    let peek = self.asks.peek();
-                    if peek.is_none() {
-                        break;
-                    }
-                    *peek.unwrap()
-                };
+        // Check if FOK and early return if not match quantity
+        if order.is_full_or_cancel() && self.collect_match_price_quantity(order) < order.quantity()
+        {
+            return order_matches;
+        }
 
-                if self.match_order(order_idx, top_price, &mut order_matches) == None {
-                    break;
-                }
+        // Match Order
+        loop {
+            let top_price = self.peek_top_price(order.is_sell());
+            if top_price == None {
+                break;
             }
-        } else {
-            loop {
-                let top_price = {
-                    let peek = self.bids.peek();
-                    if peek.is_none() {
-                        break;
-                    }
-                    peek.unwrap().0
-                };
 
-                if self.match_order(order_idx, top_price, &mut order_matches) == None {
-                    break;
-                }
+            if self.match_order(order_idx, *top_price.unwrap(), &mut order_matches) == None {
+                break;
             }
         }
 
@@ -193,6 +180,32 @@ impl<T: Order> OrderBook<T> {
     }
 
     #[inline(always)]
+    pub fn peek_top_price(&self, is_bids: bool) -> Option<&Price> {
+        if is_bids {
+            return self.bids.peek().map(|i| &i.0);
+        } else {
+            return self.asks.peek();
+        }
+    }
+
+    #[inline(always)]
+    pub fn collect_match_price_quantity(&self, order: &T) -> Quantity {
+        if order.is_buy() {
+            return self.asks.collect_match_price_quantity(
+                &order.price(),
+                &order.order_side(),
+                &order.quantity(),
+            );
+        } else {
+            return self.bids.collect_match_price_quantity(
+                &ReverseOrd::new(order.price()),
+                &order.order_side(),
+                &order.quantity(),
+            );
+        }
+    }
+
+    #[inline(always)]
     fn pop_front_fully_matched_order(allocator: &mut slab::Slab<T>, orders: &mut Orders) {
         let order_idx = orders.pop_front();
 
@@ -241,6 +254,26 @@ impl<T: Order> OrderBook<T> {
 
         return true;
     }
+
+    //
+    // Change into fn collect_match_price_quantity
+    //
+    // #[inline(always)]
+    // fn collect_match_prices(&self, order: &T) -> MatchPrices {
+    //     if order.is_buy() {
+    //         return self.asks.collect_match_prices(
+    //             &order.price(),
+    //             &order.order_side(),
+    //             &order.quantity(),
+    //         );
+    //     } else {
+    //         return self.bids.collect_match_prices(
+    //             &ReverseOrd::new(order.price()),
+    //             &order.order_side(),
+    //             &order.quantity(),
+    //         );
+    //     }
+    // }
 }
 
 impl<T: Order> std::fmt::Display for OrderBook<T> {
