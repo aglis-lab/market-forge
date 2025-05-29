@@ -1,5 +1,6 @@
 use std::cmp;
 
+use slab::Slab;
 use tabled::{builder::Builder, settings::Style};
 
 use crate::{
@@ -27,10 +28,6 @@ impl<T: Order> OrderBook<T> {
         };
     }
 
-    pub fn get_allocated_order(&self, order_id: usize) -> Option<&T> {
-        self.order_allocator.get(order_id)
-    }
-
     #[inline(always)]
     pub fn asks(&self) -> &OrderMap<Price> {
         return &self.asks;
@@ -39,6 +36,10 @@ impl<T: Order> OrderBook<T> {
     #[inline(always)]
     pub fn bids(&self) -> &OrderMap<ReverseOrd<Price>> {
         return &self.bids;
+    }
+
+    pub fn order_allocator(&self) -> &Slab<T> {
+        &self.order_allocator
     }
 
     pub fn add(&mut self, order: &T) -> Option<Vec<OrderMatch>> {
@@ -66,9 +67,9 @@ impl<T: Order> OrderBook<T> {
     fn process_order(&mut self, order_idx: usize, order: &T) -> Vec<OrderMatch> {
         let mut order_matches: Vec<OrderMatch> = Vec::new();
 
-        // Check if FOK and early return if not match quantity
-        if order.is_full_or_cancel() && self.collect_match_price_quantity(order) < order.quantity()
-        {
+        // Check if FOK or market
+        // return early if not match quantity
+        if order.is_fill_or_kill() && !self.has_sufficient_quantity(order) {
             return order_matches;
         }
 
@@ -84,6 +85,7 @@ impl<T: Order> OrderBook<T> {
             }
         }
 
+        // Return order match
         return order_matches;
     }
 
@@ -93,32 +95,34 @@ impl<T: Order> OrderBook<T> {
         top_price: Price,
         order_matches: &mut Vec<OrderMatch>,
     ) -> Option<()> {
-        let (order_side, order_price, mut order_quantity) = self
+        let (order_side, order_type, order_price, mut order_quantity) = self
             .order_allocator
             .get(order_idx)
-            .map(|o| (o.order_side(), o.price(), o.quantity()))
+            .map(|o| (o.order_side(), o.order_type(), o.price(), o.quantity()))
             .unwrap();
-        let is_match_price = self.is_match_price(&order_side, order_price, top_price);
+        if order_type.is_limit() {
+            let is_match_price = self.is_match_price(&order_side, order_price, top_price);
 
-        // Check if order is match price
-        if !is_match_price {
-            return None;
+            // Check if order is match price
+            if !is_match_price {
+                return None;
+            }
         }
 
         // Get orders for the top price
-        let orders: &mut Orders;
-        if order_side.is_buy() {
-            orders = self.asks.get_orders_mut(&top_price).unwrap();
-        } else {
-            orders = self
-                .bids
-                .get_orders_mut(&ReverseOrd::new(top_price))
-                .unwrap();
-        }
+        let orders = {
+            if order_side.is_buy() {
+                self.asks.get_orders_mut(&top_price).unwrap()
+            } else {
+                self.bids
+                    .get_orders_mut(&ReverseOrd::new(top_price))
+                    .unwrap()
+            }
+        };
 
-        // Set total quantity
-        let min_total_quantity = cmp::min(orders.total_quantity(), order_quantity);
-        orders.set_total_quantity(orders.total_quantity() - min_total_quantity);
+        // Set Order and total quantity
+        let min_total_quantity = cmp::min(orders.orders_quantity(), order_quantity);
+        orders.set_orders_quantity(orders.orders_quantity() - min_total_quantity);
 
         while orders.len() > 0 {
             let front_idx = orders.items().front().unwrap().clone();
@@ -150,7 +154,9 @@ impl<T: Order> OrderBook<T> {
 
             // If the front order is fully matched, remove it from the queue
             if front_order.quantity() == 0 {
-                Self::pop_front_fully_matched_order(&mut self.order_allocator, orders);
+                let order_idx = orders.pop_front();
+                // Remove the order from the allocator
+                self.order_allocator.remove(order_idx.unwrap());
             }
 
             // If the result order is fully matched, return None
@@ -160,14 +166,11 @@ impl<T: Order> OrderBook<T> {
         }
 
         // Remove the order from the book if it has no remaining quantity
-        if orders.total_quantity() == 0 {
-            if order_side.is_buy() {
-                self.asks.remove_order(&top_price);
-            } else {
-                self.bids.remove_order(&ReverseOrd::new(top_price));
-            }
+        if orders.orders_quantity() == 0 {
+            self.remove_order(order_side.is_sell(), &top_price);
         }
 
+        self.decrease_total_quantity(order_side.is_sell(), min_total_quantity);
         self.order_allocator
             .get_mut(order_idx)
             .unwrap()
@@ -189,29 +192,54 @@ impl<T: Order> OrderBook<T> {
     }
 
     #[inline(always)]
-    pub fn collect_match_price_quantity(&self, order: &T) -> Quantity {
-        if order.is_buy() {
-            return self.asks.collect_match_price_quantity(
-                &order.price(),
-                &order.order_side(),
-                &order.quantity(),
-            );
-        } else {
-            return self.bids.collect_match_price_quantity(
-                &ReverseOrd::new(order.price()),
-                &order.order_side(),
-                &order.quantity(),
-            );
-        }
+    pub fn has_sufficient_quantity(&self, order: &T) -> bool {
+        let quantity: Quantity = {
+            if order.is_limit_price() {
+                if order.is_buy() {
+                    self.asks.collect_quantity_match_price(
+                        &order.price(),
+                        &order.order_side(),
+                        &order.quantity(),
+                    )
+                } else {
+                    self.bids.collect_quantity_match_price(
+                        &ReverseOrd::new(order.price()),
+                        &order.order_side(),
+                        &order.quantity(),
+                    )
+                }
+            } else {
+                // Market Order
+                if order.is_buy() {
+                    self.asks.total_quantity()
+                } else {
+                    self.bids.total_quantity()
+                }
+            }
+        };
+
+        return quantity >= order.quantity();
     }
 
     #[inline(always)]
-    fn pop_front_fully_matched_order(allocator: &mut slab::Slab<T>, orders: &mut Orders) {
-        let order_idx = orders.pop_front();
-
-        // Remove the order from the allocator
-        allocator.remove(order_idx.unwrap());
+    fn decrease_total_quantity(&mut self, is_bids: bool, quantity: Quantity) {
+        if is_bids {
+            self.bids
+                .set_total_quantity(self.bids.total_quantity() - quantity);
+        } else {
+            self.asks
+                .set_total_quantity(self.asks.total_quantity() - quantity);
+        }
     }
+
+    // #[inline(always)]
+    // fn get_order_mut(&mut self, is_bids: bool, key: &Price) -> &mut Orders {
+    //     if is_bids {
+    //         return self.bids.get_orders_mut(&ReverseOrd::new(*key)).unwrap();
+    //     } else {
+    //         return self.asks.get_orders_mut(key).unwrap();
+    //     }
+    // }
 
     #[inline(always)]
     fn is_match_price(
@@ -233,12 +261,6 @@ impl<T: Order> OrderBook<T> {
 
     #[inline(always)]
     fn update_book_order(&mut self, order_idx: usize) -> bool {
-        // GTC, Good Till Cancel Order
-        return self.update_order_good_till_cancel(order_idx);
-    }
-
-    #[inline(always)]
-    fn update_order_good_till_cancel(&mut self, order_idx: usize) -> bool {
         let order = self.order_allocator.get(order_idx).unwrap();
         if order.quantity() == 0 {
             return false;
@@ -255,43 +277,34 @@ impl<T: Order> OrderBook<T> {
         return true;
     }
 
-    //
-    // Change into fn collect_match_price_quantity
-    //
-    // #[inline(always)]
-    // fn collect_match_prices(&self, order: &T) -> MatchPrices {
-    //     if order.is_buy() {
-    //         return self.asks.collect_match_prices(
-    //             &order.price(),
-    //             &order.order_side(),
-    //             &order.quantity(),
-    //         );
-    //     } else {
-    //         return self.bids.collect_match_prices(
-    //             &ReverseOrd::new(order.price()),
-    //             &order.order_side(),
-    //             &order.quantity(),
-    //         );
-    //     }
-    // }
+    #[inline(always)]
+    fn remove_order(&mut self, is_bids: bool, top_price: &Price) {
+        if is_bids {
+            self.bids.remove_order(&ReverseOrd::new(*top_price));
+        } else {
+            self.asks.remove_order(&top_price);
+        }
+    }
 }
 
 impl<T: Order> std::fmt::Display for OrderBook<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         _ = writeln!(
             f,
-            "Bids: {}, Asks: {}, Alloc: {}",
-            self.bids.len(),
-            self.asks.len(),
-            self.order_allocator.len()
+            "Bids: {}, Bids Qty: {}, Asks: {}, Asks: Qty: {}, Alloc: {}",
+            self.bids().len(),
+            self.bids().total_quantity(),
+            self.asks().len(),
+            self.asks().total_quantity(),
+            self.order_allocator().len()
         );
 
         let mut builder = Builder::new();
         builder.push_record(["Bids", "Total", "Asks", "Total"]);
 
         // Reverse bids for descending order (as bid books are usually displayed)
-        let bids: Vec<_> = self.bids.orders().iter().collect();
-        let asks: Vec<_> = self.asks.orders().iter().collect();
+        let bids: Vec<_> = self.bids().orders().iter().collect();
+        let asks: Vec<_> = self.asks().orders().iter().collect();
         let max_len = bids.len().max(asks.len());
 
         for i in 0..max_len {
@@ -300,7 +313,7 @@ impl<T: Order> std::fmt::Display for OrderBook<T> {
                 .map(|(p, o)| {
                     (
                         p.0.to_string(),
-                        format!("{}({})", o.total_quantity().to_string(), o.len()),
+                        format!("{}({})", o.orders_quantity().to_string(), o.len()),
                     )
                 })
                 .unwrap_or(("".to_string(), "".to_string()));
@@ -310,7 +323,7 @@ impl<T: Order> std::fmt::Display for OrderBook<T> {
                 .map(|(p, o)| {
                     (
                         p.to_string(),
-                        format!("{}({})", o.total_quantity().to_string(), o.len()),
+                        format!("{}({})", o.orders_quantity().to_string(), o.len()),
                     )
                 })
                 .unwrap_or(("".to_string(), "".to_string()));

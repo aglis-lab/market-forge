@@ -3,15 +3,15 @@ use fake::{
     rand::{SeedableRng, rngs::StdRng},
 };
 use market_forge::{
-    order::{OrderSide, Price, Quantity},
+    order::{Order, OrderSide, Price, Quantity, TimeInForce},
     order_book::OrderBook,
-    order_default::OrderDefault,
+    order_spec::OrderSpec,
 };
 use std::time::{Duration, Instant};
 
 fn run_perf_test(duration_secs: u64, num_to_try: usize) {
     println!("Trying run of {num_to_try} orders");
-    let mut book = OrderBook::<OrderDefault>::new(45_000_000);
+    let mut book = OrderBook::<OrderSpec>::new(45_000_000);
     let mut orders = Vec::with_capacity(num_to_try);
 
     // Use a fixed seed for reproducibility
@@ -20,14 +20,36 @@ fn run_perf_test(duration_secs: u64, num_to_try: usize) {
     for i in 0..num_to_try {
         let is_buy = i % 2 == 0;
         let delta = if is_buy { 1880 } else { 1884 };
-        let price = (rng.random_range(0..10) + delta) as Price;
-        let qty = ((rng.random_range(0..10) + 1) * 100) as Quantity;
+        let price = (rng.random_range(0..200) + delta) as Price;
+        let qty = ((rng.random_range(0..100) + 1) * 100) as Quantity;
         let side = if is_buy {
             OrderSide::Buy
         } else {
             OrderSide::Sell
         };
-        let order = OrderDefault::new(side, i as u64, price, qty);
+
+        let time_in_force = {
+            let type_force = rng.random_range(0..3);
+
+            if type_force == 0 {
+                TimeInForce::IOC
+            } else if type_force == 1 {
+                TimeInForce::FOK
+            } else {
+                TimeInForce::GTC
+            }
+        };
+        let is_limit = rng.random_bool(0.5);
+
+        let order: OrderSpec;
+        if is_limit {
+            order = OrderSpec::limit_price(i as u64, side, price, qty)
+                .with_time_in_force(time_in_force)
+                .clone();
+        } else {
+            order = OrderSpec::market(i as u64, side, qty);
+        }
+
         orders.push(order);
     }
 
@@ -56,15 +78,24 @@ fn run_perf_test(duration_secs: u64, num_to_try: usize) {
     } else {
         println!(" - not enough orders");
     }
+
+    // Check validation
+    if let Some(err) = book.asks().validate_cache().err() {
+        panic!("{:?}", err);
+    }
+
+    if let Some(err) = book.bids().validate_cache().err() {
+        panic!("{:?}", err);
+    }
 }
 
 #[test]
 fn perf_order_book_test() {
     let duration_secs = 3;
-    let mut num_to_try = duration_secs * 125_000;
+    let base_try = duration_secs * 1_000_000;
 
-    for _ in 0..10 {
-        num_to_try *= 2;
+    for i in 1..20 {
+        let num_to_try = i * base_try;
 
         run_perf_test(duration_secs, num_to_try as usize);
     }

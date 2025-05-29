@@ -4,7 +4,7 @@ use crate::order::Quantity;
 
 pub struct Orders {
     items: VecDeque<usize>,
-    total_quantity: Quantity,
+    orders_quantity: Quantity,
 }
 
 impl Orders {
@@ -12,24 +12,19 @@ impl Orders {
     pub fn new() -> Self {
         return Orders {
             items: VecDeque::new(),
-            total_quantity: 0,
+            orders_quantity: 0,
         };
     }
 
     #[inline(always)]
     pub fn add(&mut self, order_idx: usize, quantity: Quantity) {
         self.items.push_back(order_idx);
-        self.total_quantity += quantity;
+        self.orders_quantity += quantity;
     }
 
     #[inline(always)]
     pub fn len(&self) -> u32 {
         return self.items.len() as u32;
-    }
-
-    #[inline(always)]
-    pub fn total_quantity(&self) -> Quantity {
-        self.total_quantity
     }
 
     #[inline(always)]
@@ -47,7 +42,12 @@ impl Orders {
     }
 
     #[inline(always)]
-    pub fn set_total_quantity(&mut self, quantity: Quantity) {
-        self.total_quantity = quantity;
+    pub fn orders_quantity(&self) -> Quantity {
+        self.orders_quantity
+    }
+
+    #[inline(always)]
+    pub fn set_orders_quantity(&mut self, quantity: Quantity) {
+        self.orders_quantity = quantity;
     }
 }

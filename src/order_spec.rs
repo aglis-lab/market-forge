@@ -32,19 +32,28 @@ pub struct OrderSpec {
 
 impl OrderSpec {
     #[inline(always)]
-    pub fn new(
-        id: u64,
-        order_side: OrderSide,
-        order_type: OrderType,
-        price: Price,
-        quantity: Quantity,
-    ) -> Self {
+    pub fn limit_price(id: u64, order_side: OrderSide, price: Price, quantity: Quantity) -> Self {
         Self {
             id,
             order_side,
-            order_type,
             price,
             quantity,
+            order_type: OrderType::Limit,
+            trigger_price: 0,
+            trail_offset: 0,
+            time_in_force: TimeInForce::GTC, // Default to GTC
+            execution_condition: ExecutionCondition::None, // Default to None
+        }
+    }
+
+    #[inline(always)]
+    pub fn market(id: u64, order_side: OrderSide, quantity: Quantity) -> Self {
+        Self {
+            id,
+            order_side,
+            quantity,
+            price: 0,
+            order_type: OrderType::Market,
             trigger_price: 0,
             trail_offset: 0,
             time_in_force: TimeInForce::GTC, // Default to GTC
@@ -77,6 +86,11 @@ impl Order for OrderSpec {
     #[inline(always)]
     fn order_side(&self) -> OrderSide {
         self.order_side
+    }
+
+    #[inline(always)]
+    fn order_type(&self) -> OrderType {
+        return self.order_type;
     }
 
     #[inline(always)]

@@ -5,16 +5,10 @@ edition = "2024"
 
 [dependencies]
 fake = {version="4.3.0", features=["derive"]}
-priority-queue = "2.4.0"
 slab = "0.4.9"
-smallvec = "1.15.0"
 tabled = "0.19.0"
 
 [profile.release]
 opt-level = 3
 lto = true
 strip = true
-
-[[bin]]
-name = "perf_order_default"
-path = "examples/perf_order_default/main.rs"

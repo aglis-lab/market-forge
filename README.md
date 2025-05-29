@@ -62,7 +62,7 @@ event: Listener interfaces for fills, book changes, and more
 - [ ] Market
 - [ ] Limit
 - [x] Immediate-Or-Cancel
-- [ ] Fill-Or-Kill
+- [x] Fill-Or-Kill
 - [ ] All-Or-None
 - [ ] Stop / Stop-Loss
 - [ ] Trailing Stop

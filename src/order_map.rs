@@ -1,24 +1,33 @@
-use std::{cmp, collections::BTreeMap, fmt::Display, hash::Hash};
+use std::{collections::BTreeMap, fmt::Display};
 
 use crate::{
-    order::{OrderSide, Price, Quantity},
-    order_match::MatchPrices,
+    order::{OrderSide, Quantity},
     orders::Orders,
 };
 
-pub trait OrderMapKey: Ord + Clone + Display + Hash {
-    fn to_price(&self) -> Price;
-}
-
 pub struct OrderMap<P> {
     orders: BTreeMap<P, Orders>,
+    total_quantity: Quantity,
 }
 
-impl<P: OrderMapKey> OrderMap<P> {
+impl<P: Ord + Clone + Display> OrderMap<P> {
+    #[inline(always)]
+    pub fn total_quantity(&self) -> Quantity {
+        self.total_quantity
+    }
+
+    #[inline(always)]
+    pub fn set_total_quantity(&mut self, quantity: Quantity) {
+        self.total_quantity = quantity;
+    }
+}
+
+impl<P: Ord + Clone + Display> OrderMap<P> {
     #[inline(always)]
     pub fn new() -> Self {
         return OrderMap {
             orders: BTreeMap::new(),
+            total_quantity: 0,
         };
     }
 
@@ -38,6 +47,8 @@ impl<P: OrderMapKey> OrderMap<P> {
             .entry(key.clone())
             .or_insert_with(Orders::new)
             .add(order_idx, quantity);
+
+        self.total_quantity += quantity;
     }
 
     #[inline(always)]
@@ -61,7 +72,7 @@ impl<P: OrderMapKey> OrderMap<P> {
     }
 
     #[inline(always)]
-    pub fn collect_match_price_quantity(
+    pub fn collect_quantity_match_price(
         &self,
         key: &P,
         order_side: &OrderSide,
@@ -73,12 +84,12 @@ impl<P: OrderMapKey> OrderMap<P> {
             if (order_side.is_buy() && key >= top_price)
                 || (order_side.is_sell() && key <= top_price)
             {
-                result += orders.total_quantity();
+                result += orders.orders_quantity();
             } else {
                 break;
             }
 
-            if result > quantity.clone() {
+            if result > *quantity {
                 break;
             }
         }
@@ -86,34 +97,23 @@ impl<P: OrderMapKey> OrderMap<P> {
         return result;
     }
 
+    // For debugging/validation only
     #[inline(always)]
-    pub fn collect_match_prices(
-        &self,
-        key: &P,
-        order_side: &OrderSide,
-        quantity: &Quantity,
-    ) -> MatchPrices {
-        let mut result = MatchPrices::new();
-        let mut quantity = quantity.clone();
-        for (top_price, orders) in self.orders.iter() {
-            if (order_side.is_buy() && key >= top_price)
-                || (order_side.is_sell() && key <= top_price)
-            {
-                result.get_top_prices_mut().push(top_price.to_price());
-                quantity -= cmp::min(quantity, orders.total_quantity());
-            } else {
-                break;
-            }
+    pub fn recalculate_total(&self) -> Quantity {
+        self.orders.iter().map(|(_, o)| o.orders_quantity()).sum()
+    }
 
-            if quantity <= 0 {
-                break;
-            }
+    // Optional: Validate cache consistency (debug builds)
+    #[inline(always)]
+    pub fn validate_cache(&self) -> Result<(), String> {
+        let calculated = self.recalculate_total();
+        if self.total_quantity != calculated {
+            return Err(format!(
+                "Cache inconsistency: cached={}, calculated={}",
+                self.total_quantity, calculated
+            ));
         }
 
-        if quantity > 0 {
-            result.set_partially_match();
-        }
-
-        return result;
+        Ok(())
     }
 }
