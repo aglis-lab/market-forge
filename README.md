@@ -13,8 +13,6 @@
 
 - Price-time priority matching
 - Supports limit, market, and cancel orders
-- Multiple symbol (book) management
-- Pluggable event listeners for trades and book updates
 - Unit-tested and performance-optimized core
 
 ## 📚 Example
@@ -38,12 +36,6 @@ let mut book = OrderBook::<OrderSpec>::new();
 let order = OrderSpec::market(2, OrderSide::Sell, 5);
 let result = book.add(&order);
 ```
-
-## ✅ TODO
-
-- [x] Slab Allocator (using hashmap and binaryheap for order book)
-- [ ] Self-trade prevention
-- [ ] Order persistence layer
 
 ## ✅ TODO Order Type
 
