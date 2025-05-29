@@ -1,6 +1,6 @@
 use crate::order::{OrderSide, Price, Quantity};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct OrderMatch {
     pub order_side: OrderSide,
     pub price: Price,

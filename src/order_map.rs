@@ -1,112 +1,119 @@
-use std::{
-    collections::{BinaryHeap, HashMap, HashSet},
-    fmt::Display,
-    hash::Hash,
-};
+use std::{collections::BTreeMap, fmt::Display};
 
 use crate::{
-    order::{Price, Quantity},
+    order::{OrderSide, Quantity},
     orders::Orders,
 };
 
 pub struct OrderMap<P> {
-    order_price: BinaryHeap<P>,
-    order_price_exist: HashSet<P>,
-    orders: HashMap<Price, Orders>,
+    orders: BTreeMap<P, Orders>,
+    total_quantity: Quantity,
 }
 
-impl<P: Ord + Hash + Clone + Display> OrderMap<P> {
+impl<P: Ord + Clone + Display> OrderMap<P> {
+    #[inline(always)]
+    pub fn total_quantity(&self) -> Quantity {
+        self.total_quantity
+    }
+
+    #[inline(always)]
+    pub fn set_total_quantity(&mut self, quantity: Quantity) {
+        self.total_quantity = quantity;
+    }
+}
+
+impl<P: Ord + Clone + Display> OrderMap<P> {
     #[inline(always)]
     pub fn new() -> Self {
         return OrderMap {
-            order_price: BinaryHeap::new(),
-            order_price_exist: HashSet::new(),
-            orders: HashMap::new(),
+            orders: BTreeMap::new(),
+            total_quantity: 0,
         };
     }
 
     #[inline(always)]
     pub fn len(&self) -> usize {
-        self.order_price.len()
+        self.orders.len()
     }
 
     #[inline(always)]
-    pub fn order_prices(&self) -> &BinaryHeap<P> {
-        return &self.order_price;
-    }
-
-    #[inline(always)]
-    pub fn orders(&self) -> &HashMap<Price, Orders> {
+    pub fn orders(&self) -> &BTreeMap<P, Orders> {
         return &self.orders;
     }
 
     #[inline(always)]
-    pub fn add_order(&mut self, key: &P, order_idx: usize, price: Price, quantity: Quantity) {
+    pub fn add_order(&mut self, key: &P, order_idx: usize, quantity: Quantity) {
         self.orders
-            .entry(price)
+            .entry(key.clone())
             .or_insert_with(Orders::new)
             .add(order_idx, quantity);
 
-        self.add_key(key);
+        self.total_quantity += quantity;
     }
 
     #[inline(always)]
-    pub fn get_orders(&self, price: &Price) -> Option<&Orders> {
-        self.orders.get(price)
+    pub fn get_orders(&self, key: &P) -> Option<&Orders> {
+        self.orders.get(key)
     }
 
     #[inline(always)]
-    pub fn get_orders_mut(&mut self, price: &Price) -> Option<&mut Orders> {
-        self.orders.get_mut(price)
+    pub fn get_orders_mut(&mut self, key: &P) -> Option<&mut Orders> {
+        self.orders.get_mut(key)
     }
 
     #[inline(always)]
-    pub fn remove_order(&mut self, key: &P, price: &Price) -> Option<Orders> {
-        assert!(
-            key.clone()
-                == self
-                    .order_price
-                    .peek()
-                    .expect("order_price peek not found")
-                    .clone(),
-            "key and peek order price should be equal"
-        );
-
-        self.remove_key(key);
-        self.orders.remove(price)
+    pub fn remove_order(&mut self, key: &P) -> Option<Orders> {
+        self.orders.remove(key)
     }
 
     #[inline(always)]
     pub fn peek(&self) -> Option<&P> {
-        self.order_price.peek()
+        self.orders.keys().next()
     }
 
     #[inline(always)]
-    fn add_key(&mut self, key: &P) {
-        if !self.order_price_exist.contains(key) {
-            self.order_price.push(key.clone());
-            self.order_price_exist.insert(key.clone());
+    pub fn collect_quantity_match_price(
+        &self,
+        key: &P,
+        order_side: &OrderSide,
+        quantity: &Quantity,
+    ) -> Quantity {
+        let mut result: Quantity = 0;
+
+        for (top_price, orders) in self.orders.iter() {
+            if (order_side.is_buy() && key >= top_price)
+                || (order_side.is_sell() && key <= top_price)
+            {
+                result += orders.orders_quantity();
+            } else {
+                break;
+            }
+
+            if result > *quantity {
+                break;
+            }
         }
+
+        return result;
     }
 
+    // For debugging/validation only
     #[inline(always)]
-    fn remove_key(&mut self, key: &P) {
-        assert!(
-            self.order_price_exist.contains(key),
-            "key should exist in order_price_exist"
-        );
-        assert!(
-            self.order_price.peek().is_some(),
-            "order_price should not be empty"
-        );
-        assert!(
-            self.order_price.peek().unwrap() == key,
-            "key should be equal to the peek of order_price"
-        );
+    pub fn recalculate_total(&self) -> Quantity {
+        self.orders.iter().map(|(_, o)| o.orders_quantity()).sum()
+    }
 
-        // Rebuild the heap to maintain the order
-        if self.order_price_exist.remove(key) {
-            self.order_price.pop();
+    // Optional: Validate cache consistency (debug builds)
+    #[inline(always)]
+    pub fn validate_cache(&self) -> Result<(), String> {
+        let calculated = self.recalculate_total();
+        if self.total_quantity != calculated {
+            return Err(format!(
+                "Cache inconsistency: cached={}, calculated={}",
+                self.total_quantity, calculated
+            ));
         }
+
+        Ok(())
     }
 }

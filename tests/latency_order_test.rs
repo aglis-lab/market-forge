@@ -9,13 +9,13 @@ mod tests {
     use market_forge::{
         order::{OrderSide, Price, Quantity},
         order_book::OrderBook,
-        order_default::OrderDefault,
+        order_spec::OrderSpec,
     };
 
     #[test]
     fn latency_order_book_test() {
         let num_to_try = 10_000_000;
-        let mut book = OrderBook::<OrderDefault>::new(1_500_000);
+        let mut book = OrderBook::<OrderSpec>::new(1_500_000);
         let mut timestamps = Vec::with_capacity(num_to_try + 1);
 
         // Use a fixed seed for reproducibility
@@ -32,7 +32,7 @@ mod tests {
             } else {
                 OrderSide::Sell
             };
-            let order = OrderDefault::new(side, i as u64, price, qty);
+            let order = OrderSpec::limit_price(i as u64, side, price, qty);
 
             let now = Instant::now();
             book.add(&order);

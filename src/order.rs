@@ -1,27 +1,37 @@
-pub trait PriceKey: Ord + Copy {}
 pub type Price = u128;
 pub type Quantity = u128;
 
 pub trait Order: Clone {
+    // id
     fn id(&self) -> u64;
+
+    // Price of ther order
     fn price(&self) -> Price;
+
+    // Quantity
     fn quantity(&self) -> Quantity;
     fn set_quantity(&mut self, new_quantity: Quantity);
+
+    // Order Side
     fn order_side(&self) -> OrderSide;
 
+    // Order Type
+    fn order_type(&self) -> OrderType;
     // Time Force & Execution Condition
     fn time_in_force(&self) -> TimeInForce;
+
+    // Execution Condition
+    fn execution_condition(&self) -> ExecutionCondition;
 
     // Set TimeInForce
     fn set_time_in_force(&mut self, time_in_force: TimeInForce);
 
     // Copy TimeInForce
+    #[inline(always)]
     fn with_time_in_force(&mut self, time_in_force: TimeInForce) -> &Self {
         self.set_time_in_force(time_in_force);
         return self;
     }
-
-    fn execution_condition(&self) -> ExecutionCondition;
 
     // Order Side
     #[inline(always)]
@@ -34,6 +44,16 @@ pub trait Order: Clone {
         return self.order_side().is_sell();
     }
 
+    #[inline(always)]
+    fn is_market(&self) -> bool {
+        self.order_type() == OrderType::Market
+    }
+
+    #[inline(always)]
+    fn is_limit_price(&self) -> bool {
+        self.order_type() == OrderType::Limit
+    }
+
     // Good Till Cancel
     #[inline(always)]
     fn good_till_cancel(&self) -> bool {
@@ -43,7 +63,7 @@ pub trait Order: Clone {
     // should not lived at slab allocator because we discard the order from the system immediately
     #[inline(always)]
     fn is_ephemeral_order(&self) -> bool {
-        return self.is_immediate_or_cancel() || self.is_full_or_cancel();
+        return self.is_immediate_or_cancel() || self.is_fill_or_kill() || self.is_market();
     }
 
     // is immediate or cancel
@@ -54,7 +74,7 @@ pub trait Order: Clone {
 
     // is fill or kill
     #[inline(always)]
-    fn is_full_or_cancel(&self) -> bool {
+    fn is_fill_or_kill(&self) -> bool {
         return self.time_in_force() == TimeInForce::FOK;
     }
 }
@@ -99,4 +119,31 @@ pub enum OrderType {
     StopMarket,   // Triggers a Market order when stop price is hit
     StopLimit,    // Triggers a Limit order when stop price is hit
     TrailingStop, // Stop price trails market price
+}
+
+impl OrderType {
+    #[inline(always)]
+    pub fn is_market(&self) -> bool {
+        *self == OrderType::Market
+    }
+
+    #[inline(always)]
+    pub fn is_limit(&self) -> bool {
+        *self == OrderType::Limit
+    }
+
+    #[inline(always)]
+    pub fn is_stop_market(&self) -> bool {
+        *self == OrderType::StopMarket
+    }
+
+    #[inline(always)]
+    pub fn is_stop_limit(&self) -> bool {
+        *self == OrderType::StopLimit
+    }
+
+    #[inline(always)]
+    pub fn is_trailing_stop(&self) -> bool {
+        *self == OrderType::TrailingStop
+    }
 }
