@@ -19,17 +19,6 @@
 
 ## 📚 Example
 
-### Order Default Implementation
-
-```rust
-use market_forge::{order::OrderSide, order_book::OrderBook, order_default::OrderDefault};
-
-let mut book = OrderBook::<OrderDefault>::new();
-
-let order = OrderDefault::new(OrderSide::Sell, 2, 121, 5);
-let result = book.add(&order);
-```
-
 ### Order Spec Implementation
 
 ```rust
@@ -37,35 +26,37 @@ use market_forge::{order::OrderSide, order_book::OrderBook, order_spec::OrderSpe
 
 let mut book = OrderBook::<OrderSpec>::new();
 
-let order = OrderSpec::new(OrderSide::Sell, 2, 121, 5);
+let order = OrderSpec::limit_price(1, OrderSide::Sell, 121, 2);
 let result = book.add(&order);
 ```
 
-## 🧱 Architecture
+```rust
+use market_forge::{order::OrderSide, order_book::OrderBook, order_spec::OrderSpec};
 
-order_book: Core matching engine for a single instrument
+let mut book = OrderBook::<OrderSpec>::new();
 
-types: Reusable primitives (Order, Side, Price, etc.)
-
-event: Listener interfaces for fills, book changes, and more
+let order = OrderSpec::market(2, OrderSide::Sell, 5);
+let result = book.add(&order);
+```
 
 ## ✅ TODO
 
 - [x] Slab Allocator (using hashmap and binaryheap for order book)
-- [ ] Market orders
-- [ ] IOC / FOK order support
 - [ ] Self-trade prevention
 - [ ] Order persistence layer
 
-## Order Type
+## ✅ TODO Order Type
 
-- [ ] Market
-- [ ] Limit
+- [x] Market
+- [x] Limit
 - [x] Immediate-Or-Cancel
 - [x] Fill-Or-Kill
 - [ ] All-Or-None
 - [ ] Stop / Stop-Loss
 - [ ] Trailing Stop
+- [ ] OCO
+- [ ] Post-Only
+- [ ] Reduce-Only
 
 | Order Condition     | Crypto Exchanges  | Stock Exchanges | Notes                         |
 | ------------------- | ----------------- | --------------- | ----------------------------- |
