@@ -4,20 +4,31 @@ use slab::Slab;
 use tabled::{builder::Builder, settings::Style};
 
 use crate::{
-    order::{self, Order, Price, Quantity},
-    order_map::OrderMap,
-    order_match::OrderMatch,
-    orders::Orders,
+    core::order::{self, Order, OrderId, OrderSide, Price, Quantity},
+    core::order_error::OrderError,
+    core::order_map::OrderMap,
+    core::order_match::OrderMatch,
+    core::orders::{Orders, SlabIndex},
     utils::ReverseOrd,
 };
 
 pub struct OrderBook<T: Order> {
+    // Memory Allocator
     order_allocator: slab::Slab<T>,
+
+    // Bids and Asks
     bids: OrderMap<ReverseOrd<Price>>,
     asks: OrderMap<Price>,
+
+    // Stop Order
+    stop_bids: OrderMap<ReverseOrd<Price>>,
+    stop_asks: OrderMap<Price>,
+
+    // Price
+    current_market_price: Price,
 }
 
-// Implementation of the `OrderBook` struct, for managing bids and asks
+// Public Function
 impl<T: Order> OrderBook<T> {
     #[inline(always)]
     pub fn new(expected_peak_order: usize) -> Self {
@@ -25,7 +36,19 @@ impl<T: Order> OrderBook<T> {
             order_allocator: slab::Slab::with_capacity(expected_peak_order),
             asks: OrderMap::new(),
             bids: OrderMap::new(),
+            stop_asks: OrderMap::new(),
+            stop_bids: OrderMap::new(),
+            current_market_price: 0,
         };
+    }
+
+    #[inline(always)]
+    pub fn current_market_price(&self) -> Price {
+        return self.current_market_price;
+    }
+
+    pub fn set_market_price(&mut self, current_market_price: Price) {
+        self.current_market_price = current_market_price
     }
 
     #[inline(always)]
@@ -38,11 +61,22 @@ impl<T: Order> OrderBook<T> {
         return &self.bids;
     }
 
-    pub fn order_allocator(&self) -> &Slab<T> {
-        &self.order_allocator
+    #[inline(always)]
+    pub fn stop_asks(&self) -> &OrderMap<Price> {
+        return &self.stop_asks;
     }
 
-    pub fn add(&mut self, order: &T) -> Option<Vec<OrderMatch>> {
+    #[inline(always)]
+    pub fn stop_bids(&self) -> &OrderMap<ReverseOrd<Price>> {
+        return &self.stop_bids;
+    }
+
+    #[inline(always)]
+    pub fn order_allocator(&self) -> &Slab<T> {
+        return &self.order_allocator;
+    }
+
+    pub fn insert_order(&mut self, order: &T) -> Option<Vec<OrderMatch>> {
         // Using slab allocator for performance
         let order_idx = self.order_allocator.insert(order.clone());
 
@@ -64,11 +98,136 @@ impl<T: Order> OrderBook<T> {
         return Some(order_matches);
     }
 
+    pub fn replace_order(
+        &mut self,
+        order: &T,
+        quantity_delta: i64,
+        new_price: Price,
+    ) -> Result<Vec<OrderMatch>, OrderError> {
+        if new_price != 0 {
+            self.cancel_order(order)?;
+
+            return Ok(self
+                .insert_order(order.clone().with_price(new_price))
+                .unwrap_or_default());
+        }
+
+        return Ok(Vec::new());
+    }
+
+    pub fn cancel_order(&mut self, order: &T) -> Result<T, OrderError> {
+        // Get immutable orders
+        let orders = self.get_orders(order).ok_or(OrderError::OrdersNotFound)?;
+
+        // Get Order Index and Order Meta from orders
+        let (order_index, order_meta) = orders
+            .items()
+            .iter()
+            .enumerate()
+            .find(|(_, item)| item.order_id() == order.id())
+            .ok_or(OrderError::OrderNotFound)?;
+
+        // Get Slab Order
+        let slab_order = self
+            .order_allocator
+            .try_remove(order_meta.slab_idx() as usize)
+            .ok_or(OrderError::SlabFailedRemoveOrder)?;
+
+        // Get mutable orders
+        let orders = self.get_orders_mut(&slab_order).unwrap();
+
+        // Remove Order at orders
+        orders.items_mut().remove(order_index);
+
+        // Set Orders Quantity
+        orders.set_orders_quantity(orders.orders_quantity() - slab_order.quantity());
+
+        // Check if no order leave at orders
+        if orders.len() == 0 {
+            self.remove_orders(slab_order.is_buy(), &order.price());
+        }
+
+        // Decrease Total Quantity
+        self.decrease_total_quantity(slab_order.is_buy(), slab_order.quantity());
+
+        return Ok(slab_order);
+    }
+
+    /// Insert a stop order into the order book.
+    /// Stop orders are stored in stop_bids or stop_asks depending on side.
+    /// Returns true if the stop order was added.
+    pub fn insert_stop_order(&mut self, order: &T) {
+        let order_idx = self.order_allocator.insert(order.clone());
+
+        // Add to stop order map
+        if order.is_buy() {
+            let key = &ReverseOrd::new(order.price());
+            self.stop_bids
+                .add_order(key, order_idx as SlabIndex, order.id(), order.quantity());
+        } else {
+            let key = &order.price();
+            self.stop_asks
+                .add_order(key, order_idx as SlabIndex, order.id(), order.quantity());
+        }
+    }
+
+    pub fn recover_order_price(&self, order_side: OrderSide, order_id: OrderId) -> Option<Price> {
+        if order_side.is_sell() {
+            return self.asks.orders().iter().find_map(|(price, orders)| {
+                for order in orders.items() {
+                    if order.order_id() == order_id {
+                        return Some(*price);
+                    }
+                }
+
+                None
+            });
+        } else {
+            return self.bids.orders().iter().find_map(|(price, orders)| {
+                for order in orders.items() {
+                    if order.order_id() == order_id {
+                        return Some(price.0);
+                    }
+                }
+
+                None
+            });
+        }
+    }
+
+    /// Trigger stop orders if the market price crosses their stop price.
+    /// This should be called after each trade or price update.
+    // pub fn trigger_stop_orders(&mut self) -> Vec<OrderMatch> {
+    //     let mut triggered_matches = Vec::new();
+
+    //     // Collect Bids Price
+    //     let bids_prices = self
+    //         .bids
+    //         .collect_until_key(|key| self.current_market_price < key.0)
+    //         .iter()
+    //         .map(|item| item.0);
+
+    //     triggered_matches
+    // }
+
+    // Optional: Validate cache consistency
+    #[inline(always)]
+    pub fn validate_cache(&self) -> Result<(), String> {
+        self.asks.validate_cache()?;
+        self.bids.validate_cache()?;
+
+        return Ok(());
+    }
+}
+
+// Implementation of the `OrderBook` struct, for managing bids and asks
+impl<T: Order> OrderBook<T> {
     fn process_order(&mut self, order_idx: usize, order: &T) -> Vec<OrderMatch> {
         let mut order_matches: Vec<OrderMatch> = Vec::new();
 
         // Check if FOK or market
         // return early if not match quantity
+        // let order = self.order_allocator.get(order_idx).unwrap();
         if order.is_fill_or_kill() && !self.has_sufficient_quantity(order) {
             return order_matches;
         }
@@ -125,18 +284,22 @@ impl<T: Order> OrderBook<T> {
         orders.set_orders_quantity(orders.orders_quantity() - min_total_quantity);
 
         while orders.len() > 0 {
-            let front_idx = orders.items().front().unwrap().clone();
+            let front_order_meta = orders.items().front().unwrap();
 
             assert!(
                 order_quantity > 0,
                 "Order quantity should be greater than 0"
             );
             assert!(
-                self.order_allocator.contains(front_idx),
+                self.order_allocator
+                    .contains(front_order_meta.slab_idx() as usize),
                 "Order allocator should contain the front index"
             );
 
-            let (front_order, order) = self.order_allocator.get2_mut(front_idx, order_idx).unwrap();
+            let (front_order, order) = self
+                .order_allocator
+                .get2_mut(front_order_meta.slab_idx() as usize, order_idx)
+                .unwrap();
 
             // Match the order with the front order
             let min_quantity = cmp::min(front_order.quantity(), order_quantity);
@@ -154,9 +317,10 @@ impl<T: Order> OrderBook<T> {
 
             // If the front order is fully matched, remove it from the queue
             if front_order.quantity() == 0 {
-                let order_idx = orders.pop_front();
+                let order_meta = orders.pop_front().unwrap();
+
                 // Remove the order from the allocator
-                self.order_allocator.remove(order_idx.unwrap());
+                self.order_allocator.remove(order_meta.slab_idx() as usize);
             }
 
             // If the result order is fully matched, return None
@@ -167,7 +331,7 @@ impl<T: Order> OrderBook<T> {
 
         // Remove the order from the book if it has no remaining quantity
         if orders.orders_quantity() == 0 {
-            self.remove_order(order_side.is_sell(), &top_price);
+            self.remove_orders(order_side.is_sell(), &top_price);
         }
 
         self.decrease_total_quantity(order_side.is_sell(), min_total_quantity);
@@ -183,11 +347,29 @@ impl<T: Order> OrderBook<T> {
     }
 
     #[inline(always)]
+    fn get_orders(&self, order: &T) -> Option<&Orders> {
+        if order.is_buy() {
+            return self.bids.get_orders(&ReverseOrd::new(order.price()));
+        } else {
+            return self.asks.get_orders(&order.price());
+        }
+    }
+
+    #[inline(always)]
+    fn get_orders_mut(&mut self, order: &T) -> Option<&mut Orders> {
+        if order.is_buy() {
+            return self.bids.get_orders_mut(&ReverseOrd::new(order.price()));
+        } else {
+            return self.asks.get_orders_mut(&order.price());
+        }
+    }
+
+    #[inline(always)]
     pub fn peek_top_price(&self, is_bids: bool) -> Option<&Price> {
         if is_bids {
-            return self.bids.peek().map(|i| &i.0);
+            return self.bids.peek_key().map(|i| &i.0);
         } else {
-            return self.asks.peek();
+            return self.asks.peek_key();
         }
     }
 
@@ -232,15 +414,6 @@ impl<T: Order> OrderBook<T> {
         }
     }
 
-    // #[inline(always)]
-    // fn get_order_mut(&mut self, is_bids: bool, key: &Price) -> &mut Orders {
-    //     if is_bids {
-    //         return self.bids.get_orders_mut(&ReverseOrd::new(*key)).unwrap();
-    //     } else {
-    //         return self.asks.get_orders_mut(key).unwrap();
-    //     }
-    // }
-
     #[inline(always)]
     fn is_match_price(
         &self,
@@ -266,23 +439,26 @@ impl<T: Order> OrderBook<T> {
             return false;
         }
 
+        // Add Order
         if order.is_buy() {
             let key = &ReverseOrd::new(order.price());
-            self.bids.add_order(key, order_idx, order.quantity());
+            self.bids
+                .add_order(key, order_idx as SlabIndex, order.id(), order.quantity());
         } else {
             let key = &order.price();
-            self.asks.add_order(key, order_idx, order.quantity());
+            self.asks
+                .add_order(key, order_idx as SlabIndex, order.id(), order.quantity());
         }
 
         return true;
     }
 
     #[inline(always)]
-    fn remove_order(&mut self, is_bids: bool, top_price: &Price) {
+    fn remove_orders(&mut self, is_bids: bool, top_price: &Price) {
         if is_bids {
-            self.bids.remove_order(&ReverseOrd::new(*top_price));
+            self.bids.remove_orders(&ReverseOrd::new(*top_price));
         } else {
-            self.asks.remove_order(&top_price);
+            self.asks.remove_orders(&top_price);
         }
     }
 }

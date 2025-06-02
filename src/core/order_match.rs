@@ -1,4 +1,4 @@
-use crate::order::{OrderSide, Price, Quantity};
+use crate::core::order::{OrderId, OrderSide, Price, Quantity};
 
 #[derive(Debug, PartialEq)]
 pub struct OrderMatch {
@@ -6,6 +6,6 @@ pub struct OrderMatch {
     pub price: Price,
     pub quantity: Quantity,
 
-    pub match_from_id: u64,
-    pub match_to_id: u64,
+    pub match_from_id: OrderId,
+    pub match_to_id: OrderId,
 }

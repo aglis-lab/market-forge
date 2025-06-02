@@ -9,3 +9,6 @@ test_release_%:
 
 test_%:
 	cargo test --test $*_test -- --nocapture
+
+flame_%:
+	cargo flamegraph -b $* -r -v -o ./temp/$*.svg

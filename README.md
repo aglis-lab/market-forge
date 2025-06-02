@@ -37,6 +37,15 @@ let order = OrderSpec::market(2, OrderSide::Sell, 5);
 let result = book.add(&order);
 ```
 
+## ✅ TODO
+
+- [x] Insert Order
+- [x] Cancel Order
+- [ ] Replace Order
+- [ ] Recover Order
+  - Just use it for recover order price when you missing it
+  - It's very slow for high performance matching engine
+
 ## ✅ TODO Order Type
 
 - [x] Market
@@ -44,7 +53,9 @@ let result = book.add(&order);
 - [x] Immediate-Or-Cancel
 - [x] Fill-Or-Kill
 - [ ] All-Or-None
-- [ ] Stop / Stop-Loss
+- [ ] Stop Limit
+- [ ] Stop Market
+- [ ] Stop-Loss
 - [ ] Trailing Stop
 - [ ] OCO
 - [ ] Post-Only

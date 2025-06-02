@@ -1,15 +1,11 @@
-use crate::order::{ExecutionCondition, Order, OrderSide, OrderType, Price, Quantity, TimeInForce};
+use crate::core::order::{
+    ExecutionCondition, Order, OrderId, OrderSide, OrderType, Price, Quantity, TimeInForce,
+};
 
 #[derive(Debug, Clone)]
 pub struct OrderSpec {
     // Unique identifier for the order
-    pub id: u64,
-
-    // Side of the order (Buy or Sell)
-    pub order_side: OrderSide,
-
-    // Type of the order (e.g., Market, Limit, Stop)
-    pub order_type: OrderType,
+    pub id: OrderId,
 
     // Price of the order
     pub price: Price,
@@ -17,45 +13,59 @@ pub struct OrderSpec {
     // Quantity of the order
     pub quantity: Quantity,
 
+    // Side of the order (Buy or Sell)
+    pub order_side: OrderSide,
+
+    // Type of the order (e.g., Market, Limit, Stop)
+    pub order_type: OrderType,
+
     // Time and execution conditions
     pub time_in_force: TimeInForce,
 
     // Execution condition for the order
     pub execution_condition: ExecutionCondition,
-
-    // Stop Price for Stop orders
-    pub trigger_price: Price,
-
-    // Trail offset for trailing stop orders
-    pub trail_offset: Price,
 }
 
 impl OrderSpec {
     #[inline(always)]
-    pub fn limit_price(id: u64, order_side: OrderSide, price: Price, quantity: Quantity) -> Self {
+    pub fn limit_price(
+        id: OrderId,
+        order_side: OrderSide,
+        price: Price,
+        quantity: Quantity,
+    ) -> Self {
         Self {
             id,
             order_side,
             price,
             quantity,
             order_type: OrderType::Limit,
-            trigger_price: 0,
-            trail_offset: 0,
             time_in_force: TimeInForce::GTC, // Default to GTC
             execution_condition: ExecutionCondition::None, // Default to None
         }
     }
 
     #[inline(always)]
-    pub fn market(id: u64, order_side: OrderSide, quantity: Quantity) -> Self {
+    pub fn cancel(id: OrderId, order_side: OrderSide, price: Price) -> Self {
         Self {
             id,
+            order_side,
+            price,
+            quantity: 0,                                   // NOT BEING USED
+            order_type: OrderType::Limit,                  // NOT BEING USED
+            time_in_force: TimeInForce::GTC,               // NOT BEING USED
+            execution_condition: ExecutionCondition::None, // NOT BEING USED
+        }
+    }
+
+    #[inline(always)]
+    pub fn market(id: OrderId, order_side: OrderSide, quantity: Quantity) -> Self {
+        Self {
+            id: id,
             order_side,
             quantity,
             price: 0,
             order_type: OrderType::Market,
-            trigger_price: 0,
-            trail_offset: 0,
             time_in_force: TimeInForce::GTC, // Default to GTC
             execution_condition: ExecutionCondition::None, // Default to None
         }
@@ -64,13 +74,18 @@ impl OrderSpec {
 
 impl Order for OrderSpec {
     #[inline(always)]
-    fn id(&self) -> u64 {
+    fn id(&self) -> OrderId {
         self.id
     }
 
     #[inline(always)]
     fn price(&self) -> Price {
         self.price
+    }
+
+    #[inline(always)]
+    fn set_price(&mut self, new_price: Price) {
+        self.price = new_price;
     }
 
     #[inline(always)]

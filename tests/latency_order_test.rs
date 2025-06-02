@@ -6,8 +6,8 @@ mod tests {
         Rng,
         rand::{SeedableRng, rngs::StdRng},
     };
-    use market_forge::{
-        order::{OrderSide, Price, Quantity},
+    use market_forge::core::{
+        order::{OrderId, OrderSide, Price, Quantity},
         order_book::OrderBook,
         order_spec::OrderSpec,
     };
@@ -32,10 +32,10 @@ mod tests {
             } else {
                 OrderSide::Sell
             };
-            let order = OrderSpec::limit_price(i as u64, side, price, qty);
+            let order = OrderSpec::limit_price(i as OrderId, side, price, qty);
 
             let now = Instant::now();
-            book.add(&order);
+            book.insert_order(&order);
             timestamps.push(now);
         }
         // Final timestamp

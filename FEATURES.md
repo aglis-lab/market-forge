@@ -30,7 +30,7 @@ Allow users to cancel their resting orders from the book.
 
 Handle partial cancels and full cancels safely.
 
-### 5. Add Stop Orders (If You Want Triggered Orders)
+### 5. Add Stop Orders
 
 Behavior: The order sits inactive until a specified stop price triggers it.
 

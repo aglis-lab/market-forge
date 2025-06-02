@@ -1,8 +1,8 @@
 use std::{collections::BTreeMap, fmt::Display};
 
 use crate::{
-    order::{OrderSide, Quantity},
-    orders::Orders,
+    core::order::{OrderId, OrderSide, Quantity},
+    core::orders::{Orders, SlabIndex},
 };
 
 pub struct OrderMap<P> {
@@ -42,11 +42,17 @@ impl<P: Ord + Clone + Display> OrderMap<P> {
     }
 
     #[inline(always)]
-    pub fn add_order(&mut self, key: &P, order_idx: usize, quantity: Quantity) {
+    pub fn add_order(
+        &mut self,
+        key: &P,
+        order_idx: SlabIndex,
+        order_id: OrderId,
+        quantity: Quantity,
+    ) {
         self.orders
             .entry(key.clone())
             .or_insert_with(Orders::new)
-            .add(order_idx, quantity);
+            .add(order_idx, order_id, quantity);
 
         self.total_quantity += quantity;
     }
@@ -62,13 +68,23 @@ impl<P: Ord + Clone + Display> OrderMap<P> {
     }
 
     #[inline(always)]
-    pub fn remove_order(&mut self, key: &P) -> Option<Orders> {
+    pub fn remove_orders(&mut self, key: &P) -> Option<Orders> {
         self.orders.remove(key)
     }
 
     #[inline(always)]
-    pub fn peek(&self) -> Option<&P> {
+    pub fn peek_key(&self) -> Option<&P> {
         self.orders.keys().next()
+    }
+
+    #[inline(always)]
+    pub fn peek_mut(&mut self) -> Option<(&P, &mut Orders)> {
+        self.orders.iter_mut().next()
+    }
+
+    #[inline(always)]
+    pub fn peek(&self) -> Option<(&P, &Orders)> {
+        self.orders.iter().next()
     }
 
     #[inline(always)]
@@ -103,7 +119,7 @@ impl<P: Ord + Clone + Display> OrderMap<P> {
         self.orders.iter().map(|(_, o)| o.orders_quantity()).sum()
     }
 
-    // Optional: Validate cache consistency (debug builds)
+    // Optional: Validate cache consistency
     #[inline(always)]
     pub fn validate_cache(&self) -> Result<(), String> {
         let calculated = self.recalculate_total();
@@ -115,5 +131,21 @@ impl<P: Ord + Clone + Display> OrderMap<P> {
         }
 
         Ok(())
+    }
+
+    #[inline(always)]
+    pub fn collect_until_key<F>(&self, is_break: F) -> Vec<P>
+    where
+        F: Fn(&P) -> bool,
+    {
+        let mut result = Vec::new();
+        for element in self.orders.keys() {
+            if is_break(element) {
+                break;
+            }
+
+            result.push(element.clone());
+        }
+        result
     }
 }

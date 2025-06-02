@@ -1,12 +1,14 @@
-pub type Price = u128;
-pub type Quantity = u128;
+pub type Price = u64;
+pub type Quantity = u64;
+pub type OrderId = u32;
 
 pub trait Order: Clone {
     // id
-    fn id(&self) -> u64;
+    fn id(&self) -> OrderId;
 
     // Price of ther order
     fn price(&self) -> Price;
+    fn set_price(&mut self, new_price: Price);
 
     // Quantity
     fn quantity(&self) -> Quantity;
@@ -30,6 +32,12 @@ pub trait Order: Clone {
     #[inline(always)]
     fn with_time_in_force(&mut self, time_in_force: TimeInForce) -> &Self {
         self.set_time_in_force(time_in_force);
+        return self;
+    }
+
+    #[inline(always)]
+    fn with_price(&mut self, new_price: Price) -> &Self {
+        self.set_price(new_price);
         return self;
     }
 
@@ -63,7 +71,7 @@ pub trait Order: Clone {
     // should not lived at slab allocator because we discard the order from the system immediately
     #[inline(always)]
     fn is_ephemeral_order(&self) -> bool {
-        return self.is_immediate_or_cancel() || self.is_fill_or_kill() || self.is_market();
+        return self.is_immediate_or_cancel() || self.is_fill_or_kill();
     }
 
     // is immediate or cancel
