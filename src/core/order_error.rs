@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum OrderError {
     #[error("Orders not found")]
     OrdersNotFound,
@@ -14,7 +14,9 @@ pub enum OrderError {
     #[error("Failed to remove order from slab")]
     SlabFailedRemoveOrder,
 
-    // Insert Order
     #[error("No order was match")]
     NoOrderMatch,
+
+    #[error("Order already filled")]
+    OrderAlreadyFilled,
 }

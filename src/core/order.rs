@@ -30,14 +30,20 @@ pub trait Order: Clone {
 
     // Copy TimeInForce
     #[inline(always)]
-    fn with_time_in_force(&mut self, time_in_force: TimeInForce) -> &Self {
+    fn with_time_in_force(mut self, time_in_force: TimeInForce) -> Self {
         self.set_time_in_force(time_in_force);
         return self;
     }
 
     #[inline(always)]
-    fn with_price(&mut self, new_price: Price) -> &Self {
+    fn with_price(mut self, new_price: Price) -> Self {
         self.set_price(new_price);
+        return self;
+    }
+
+    #[inline(always)]
+    fn with_quantity(mut self, new_quantity: Quantity) -> Self {
+        self.set_quantity(new_quantity);
         return self;
     }
 
@@ -112,6 +118,7 @@ pub enum TimeInForce {
     FOK, // Fill or kill
     DAY, // Good for the trading day (optional, often used in stock exchanges)
     GTD, // Good Till Date (optional, usually for advanced systems)
+    GTT, // Good Till Time (optional, usually for advanced systems)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

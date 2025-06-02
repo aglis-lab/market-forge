@@ -59,6 +59,19 @@ impl OrderSpec {
     }
 
     #[inline(always)]
+    pub fn replace(id: OrderId, order_side: OrderSide, price: Price) -> Self {
+        Self {
+            id,
+            order_side,
+            price,
+            quantity: 0,                                   // NOT BEING USED
+            order_type: OrderType::Limit,                  // NOT BEING USED
+            time_in_force: TimeInForce::GTC,               // NOT BEING USED
+            execution_condition: ExecutionCondition::None, // NOT BEING USED
+        }
+    }
+
+    #[inline(always)]
     pub fn market(id: OrderId, order_side: OrderSide, quantity: Quantity) -> Self {
         Self {
             id: id,

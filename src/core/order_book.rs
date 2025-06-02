@@ -104,15 +104,71 @@ impl<T: Order> OrderBook<T> {
         quantity_delta: i64,
         new_price: Price,
     ) -> Result<Vec<OrderMatch>, OrderError> {
-        if new_price != 0 {
-            self.cancel_order(order)?;
+        // Only quantity is changing
+        let orders = self.get_orders(order).ok_or(OrderError::OrdersNotFound)?;
 
-            return Ok(self
-                .insert_order(order.clone().with_price(new_price))
-                .unwrap_or_default());
+        // Get Order Meta
+        // If already found, we should expect it's also exist at slab allocator
+        let (order_index, order_meta) = orders
+            .items()
+            .iter()
+            .enumerate()
+            .find(|(_, item)| item.order_id() == order.id())
+            .ok_or(OrderError::OrderNotFound)?;
+
+        // Get Order inside Slab Allocator
+        let slab_order = self
+            .order_allocator
+            .get(order_meta.slab_idx() as usize)
+            .ok_or(OrderError::SlabOrderNotFound)?;
+
+        // Check if quantity is still valid
+        // New Order Quanttity
+        let new_quantity = {
+            if quantity_delta.is_positive() {
+                slab_order
+                    .quantity()
+                    .saturating_add(quantity_delta as Quantity)
+            } else {
+                slab_order
+                    .quantity()
+                    .saturating_sub(quantity_delta as Quantity)
+            }
+        };
+
+        if new_quantity == 0 {
+            return Err(OrderError::OrderAlreadyFilled);
         }
 
-        return Ok(Vec::new());
+        // New Order Quantity
+        let new_orders_quantity = orders.orders_quantity() - slab_order.quantity();
+
+        // New Total Quantity
+        let new_total_quantity = self.total_quantity(order.is_buy()) - slab_order.quantity();
+
+        // Create New Order
+        let mut new_order = order.clone().with_quantity(new_quantity);
+        if new_price != 0 {
+            new_order = new_order.with_price(new_price);
+        }
+
+        // Delete last order
+        // delete from slab allocator
+        self.order_allocator.remove(order_meta.slab_idx() as usize);
+
+        // delete from btreemap
+        let orders = self.get_orders_mut(order).unwrap();
+        orders.items_mut().remove(order_index);
+
+        // Change Orders Quantity
+        orders.set_orders_quantity(new_orders_quantity);
+
+        // Change Total Quantity
+        self.decrease_total_quantity(order.is_buy(), new_total_quantity);
+
+        // Insert as new order
+        let matches = self.insert_order(&new_order).unwrap_or_default();
+        Ok(matches)
     }
 
     pub fn cancel_order(&mut self, order: &T) -> Result<T, OrderError> {
@@ -404,13 +460,29 @@ impl<T: Order> OrderBook<T> {
     }
 
     #[inline(always)]
+    fn total_quantity(&self, is_bids: bool) -> Quantity {
+        if is_bids {
+            return self.bids.total_quantity();
+        } else {
+            return self.asks.total_quantity();
+        }
+    }
+
+    #[inline(always)]
+    fn set_total_quantity(&mut self, is_bids: bool, new_quantity: Quantity) {
+        if is_bids {
+            self.bids.set_total_quantity(new_quantity);
+        } else {
+            self.asks.set_total_quantity(new_quantity);
+        }
+    }
+
+    #[inline(always)]
     fn decrease_total_quantity(&mut self, is_bids: bool, quantity: Quantity) {
         if is_bids {
-            self.bids
-                .set_total_quantity(self.bids.total_quantity() - quantity);
+            self.set_total_quantity(is_bids, self.bids.total_quantity() - quantity);
         } else {
-            self.asks
-                .set_total_quantity(self.asks.total_quantity() - quantity);
+            self.set_total_quantity(is_bids, self.asks.total_quantity() - quantity);
         }
     }
 

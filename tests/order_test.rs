@@ -5,6 +5,7 @@ mod tests {
     use market_forge::core::{
         order::{Order, OrderSide, TimeInForce},
         order_book::OrderBook,
+        order_error::OrderError,
         order_match::OrderMatch,
         order_spec::OrderSpec,
     };
@@ -262,6 +263,38 @@ mod tests {
 
         println!("{}", book);
 
+        if let Some(err) = book.validate_cache().err() {
+            panic!("{:?}", err);
+        }
+    }
+
+    #[test]
+    fn order_replace_test() {
+        println!("OrderSpec size: {} bytes", mem::size_of::<OrderSpec>());
+
+        let mut book = OrderBook::<OrderSpec>::new(100);
+
+        _ = book.insert_order(&OrderSpec::limit_price(1, OrderSide::Sell, 121, 12));
+        _ = book.insert_order(&OrderSpec::limit_price(2, OrderSide::Sell, 120, 8));
+        _ = book.insert_order(&OrderSpec::limit_price(3, OrderSide::Sell, 120, 2));
+        _ = book.insert_order(&OrderSpec::limit_price(4, OrderSide::Sell, 118, 5));
+
+        _ = book.insert_order(&OrderSpec::limit_price(5, OrderSide::Buy, 115, 2));
+        _ = book.insert_order(&OrderSpec::limit_price(6, OrderSide::Buy, 116, 15));
+
+        // Replace Order Id 5 Quantity
+        let should_err = book.replace_order(&OrderSpec::replace(5, OrderSide::Buy, 115), -2, 0);
+
+        //
+
+        assert_eq!(
+            should_err.err(),
+            Some(OrderError::OrderAlreadyFilled),
+            "Order Already Filled"
+        );
+        println!("{}", book);
+
+        // Check validation
         if let Some(err) = book.validate_cache().err() {
             panic!("{:?}", err);
         }
