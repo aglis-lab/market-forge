@@ -68,7 +68,7 @@ impl OrderQueue {
         Some(self.queue.remove(index).unwrap())
     }
 
-    // TODO: We can optimize it by using prev and next indices inside order allocator, but for simplicity, we will use binary search here.
+    // TODO: We can optimize it by using prev and next indices inside order allocator, but for simplicity, we will use linear search here.
     // With those optimizations, we can achieve O(1) complexity for finding and removing orders, but it will require more complex data structures and management.
     #[inline(always)]
     pub fn find_order(&self, order_id: order::OrderId) -> Option<(usize, OrderMeta)> {
