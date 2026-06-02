@@ -472,10 +472,10 @@ impl<T: Order> std::fmt::Display for OrderBook<T> {
         _ = writeln!(
             f,
             "Bids: {}, Bids Qty: {}, Asks: {}, Asks: Qty: {}, Alloc: {}",
-            self.bids().len(),
-            self.bids().total_quantity(),
-            self.asks().len(),
-            self.asks().total_quantity(),
+            self.bids.len(),
+            self.bids.total_quantity(),
+            self.asks.len(),
+            self.asks.total_quantity(),
             self.order_allocator.len()
         );
 
@@ -483,8 +483,8 @@ impl<T: Order> std::fmt::Display for OrderBook<T> {
         builder.push_record(["Bids", "Total", "Asks", "Total"]);
 
         // Reverse bids for descending order (as bid books are usually displayed)
-        let bids: Vec<_> = self.bids().orders().iter().collect();
-        let asks: Vec<_> = self.asks().orders().iter().collect();
+        let bids: Vec<_> = self.bids.orders().iter().collect();
+        let asks: Vec<_> = self.asks.orders().iter().collect();
         let max_len = bids.len().max(asks.len());
 
         for i in 0..max_len {

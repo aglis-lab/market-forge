@@ -43,7 +43,7 @@ let result = book.add(&order);
 
 - ✅ Insert Order
 - ✅ Cancel Order
-- ⬜ Replace Order
+- ✅ Replace Order
 - ⬜ Recover Order
   - Just use it for recover order price when you missing it
   - It's very slow for high performance matching engine
