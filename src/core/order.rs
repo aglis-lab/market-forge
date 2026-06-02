@@ -1,8 +1,12 @@
+use std::fmt::Debug;
+
+use rkyv::{Archive, Deserialize, Serialize};
+
 pub type Price = u64;
 pub type Quantity = u64;
-pub type OrderId = u32;
+pub type OrderId = u64;
 
-pub trait Order: Clone {
+pub trait Order: Clone + Debug + PartialEq {
     // id
     fn id(&self) -> OrderId;
 
@@ -93,7 +97,14 @@ pub trait Order: Clone {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+#[derive(Archive, Deserialize, Serialize, Debug, PartialEq, Clone, Copy)]
+#[rkyv(
+    // This will generate a PartialEq impl between our unarchived
+    // and archived types
+    compare(PartialEq),
+    // Derives can be passed through to the generated type:
+    derive(Debug),
+)]
 pub enum OrderSide {
     Buy,  // Buy order
     Sell, // Sell order
@@ -111,7 +122,14 @@ impl OrderSide {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Archive, Deserialize, Serialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[rkyv(
+    // This will generate a PartialEq impl between our unarchived
+    // and archived types
+    compare(PartialEq),
+    // Derives can be passed through to the generated type:
+    derive(Debug),
+)]
 pub enum TimeInForce {
     GTC, // Good till cancel
     IOC, // Immediate or cancel
@@ -121,13 +139,27 @@ pub enum TimeInForce {
     GTT, // Good Till Time (optional, usually for advanced systems)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Archive, Deserialize, Serialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[rkyv(
+    // This will generate a PartialEq impl between our unarchived
+    // and archived types
+    compare(PartialEq),
+    // Derives can be passed through to the generated type:
+    derive(Debug),
+)]
 pub enum ExecutionCondition {
     None, // No condition
     AON,  // All-Or-None
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Archive, Deserialize, Serialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[rkyv(
+    // This will generate a PartialEq impl between our unarchived
+    // and archived types
+    compare(PartialEq),
+    // Derives can be passed through to the generated type:
+    derive(Debug),
+)]
 pub enum OrderType {
     Market,       // Market order — match now, no price
     Limit,        // Limit order — match at limit price or better

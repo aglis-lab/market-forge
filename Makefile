@@ -12,3 +12,6 @@ test_%:
 
 flame_%:
 	cargo flamegraph -b $* -r -v -o ./temp/$*.svg
+
+samply_order_cancel:
+	samply record cargo bench --bench perf_order -- perf_order_cancel/50000

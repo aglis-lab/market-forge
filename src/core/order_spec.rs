@@ -1,8 +1,17 @@
+use rkyv::{Archive, Deserialize, Serialize};
+
 use crate::core::order::{
     ExecutionCondition, Order, OrderId, OrderSide, OrderType, Price, Quantity, TimeInForce,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Archive, Deserialize, Serialize, Debug, PartialEq, Clone)]
+#[rkyv(
+    // This will generate a PartialEq impl between our unarchived
+    // and archived types
+    compare(PartialEq),
+    // Derives can be passed through to the generated type:
+    derive(Debug),
+)]
 pub struct OrderSpec {
     // Unique identifier for the order
     pub id: OrderId,
@@ -144,5 +153,19 @@ impl Order for OrderSpec {
     #[inline(always)]
     fn set_time_in_force(&mut self, time_in_force: TimeInForce) {
         self.time_in_force = time_in_force;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::mem::size_of;
+
+    #[test]
+    fn show_order_spec_size() {
+        let size = size_of::<OrderSpec>();
+        // Print size; run tests with `-- --nocapture` to see this output.
+        println!("OrderSpec size: {} bytes", size);
+        assert!(size > 0);
     }
 }

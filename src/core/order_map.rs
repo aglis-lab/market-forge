@@ -1,32 +1,29 @@
-use std::{collections::BTreeMap, fmt::Display};
+use std::{collections, fmt};
 
-use crate::{
-    core::order::{OrderId, OrderSide, Quantity},
-    core::orders::{Orders, SlabIndex},
-};
+use crate::core::{order, order_allocator, order_queue};
 
 pub struct OrderMap<P> {
-    orders: BTreeMap<P, Orders>,
-    total_quantity: Quantity,
+    orders: collections::BTreeMap<P, order_queue::OrderQueue>,
+    total_quantity: order::Quantity,
 }
 
-impl<P: Ord + Clone + Display> OrderMap<P> {
+impl<P: Ord + Clone + fmt::Display> OrderMap<P> {
     #[inline(always)]
-    pub fn total_quantity(&self) -> Quantity {
+    pub fn total_quantity(&self) -> order::Quantity {
         self.total_quantity
     }
 
     #[inline(always)]
-    pub fn set_total_quantity(&mut self, quantity: Quantity) {
+    pub fn set_total_quantity(&mut self, quantity: order::Quantity) {
         self.total_quantity = quantity;
     }
 }
 
-impl<P: Ord + Clone + Display> OrderMap<P> {
+impl<P: Ord + Clone + fmt::Display> OrderMap<P> {
     #[inline(always)]
     pub fn new() -> Self {
         return OrderMap {
-            orders: BTreeMap::new(),
+            orders: collections::BTreeMap::new(),
             total_quantity: 0,
         };
     }
@@ -37,7 +34,7 @@ impl<P: Ord + Clone + Display> OrderMap<P> {
     }
 
     #[inline(always)]
-    pub fn orders(&self) -> &BTreeMap<P, Orders> {
+    pub fn orders(&self) -> &collections::BTreeMap<P, order_queue::OrderQueue> {
         return &self.orders;
     }
 
@@ -45,30 +42,30 @@ impl<P: Ord + Clone + Display> OrderMap<P> {
     pub fn add_order(
         &mut self,
         key: &P,
-        order_idx: SlabIndex,
-        order_id: OrderId,
-        quantity: Quantity,
+        order_idx: order_allocator::AllocatorIndex,
+        order_id: order::OrderId,
+        quantity: order::Quantity,
     ) {
         self.orders
             .entry(key.clone())
-            .or_insert_with(Orders::new)
+            .or_insert_with(order_queue::OrderQueue::new)
             .add(order_idx, order_id, quantity);
 
         self.total_quantity += quantity;
     }
 
     #[inline(always)]
-    pub fn get_orders(&self, key: &P) -> Option<&Orders> {
+    pub fn get_orders(&self, key: &P) -> Option<&order_queue::OrderQueue> {
         self.orders.get(key)
     }
 
     #[inline(always)]
-    pub fn get_orders_mut(&mut self, key: &P) -> Option<&mut Orders> {
+    pub fn get_orders_mut(&mut self, key: &P) -> Option<&mut order_queue::OrderQueue> {
         self.orders.get_mut(key)
     }
 
     #[inline(always)]
-    pub fn remove_orders(&mut self, key: &P) -> Option<Orders> {
+    pub fn remove_orders(&mut self, key: &P) -> Option<order_queue::OrderQueue> {
         self.orders.remove(key)
     }
 
@@ -78,12 +75,12 @@ impl<P: Ord + Clone + Display> OrderMap<P> {
     }
 
     #[inline(always)]
-    pub fn peek_mut(&mut self) -> Option<(&P, &mut Orders)> {
+    pub fn peek_mut(&mut self) -> Option<(&P, &mut order_queue::OrderQueue)> {
         self.orders.iter_mut().next()
     }
 
     #[inline(always)]
-    pub fn peek(&self) -> Option<(&P, &Orders)> {
+    pub fn peek(&self) -> Option<(&P, &order_queue::OrderQueue)> {
         self.orders.iter().next()
     }
 
@@ -91,10 +88,10 @@ impl<P: Ord + Clone + Display> OrderMap<P> {
     pub fn collect_quantity_match_price(
         &self,
         key: &P,
-        order_side: &OrderSide,
-        quantity: &Quantity,
-    ) -> Quantity {
-        let mut result: Quantity = 0;
+        order_side: &order::OrderSide,
+        quantity: &order::Quantity,
+    ) -> order::Quantity {
+        let mut result: order::Quantity = 0;
 
         for (top_price, orders) in self.orders.iter() {
             if (order_side.is_buy() && key >= top_price)
@@ -115,7 +112,7 @@ impl<P: Ord + Clone + Display> OrderMap<P> {
 
     // For debugging/validation only
     #[inline(always)]
-    pub fn recalculate_total(&self) -> Quantity {
+    pub fn recalculate_total(&self) -> order::Quantity {
         self.orders.iter().map(|(_, o)| o.orders_quantity()).sum()
     }
 

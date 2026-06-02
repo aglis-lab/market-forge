@@ -89,6 +89,12 @@ fn run_perf_test(duration_secs: u64, num_to_try: usize) -> bool {
         let remain: usize = book.bids().len() + book.asks().len();
         println!("Run matched {} orders", order_count - remain);
     } else {
+        println!(
+            "Inserted {} orders in {} seconds, or {} insertions per sec",
+            order_count,
+            duration_secs,
+            order_count as u64 / duration_secs
+        );
         println!(" - not enough orders");
     }
 
@@ -103,7 +109,7 @@ fn run_perf_test(duration_secs: u64, num_to_try: usize) -> bool {
 #[test]
 fn perf_order_book_test() {
     let duration_secs = 3;
-    let base_try = duration_secs * 500_000;
+    let base_try = duration_secs * 1_000_000;
 
     for i in 1..20 {
         let num_to_try = i * base_try;

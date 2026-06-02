@@ -12,9 +12,9 @@ use std::time::{Duration, Instant};
 #[test]
 fn perf_order_book_test() {
     let duration_secs = 3;
-    let base_try = duration_secs * 2_000_000;
+    let base_try = duration_secs * 1_000_000;
 
-    for i in 1..10 {
+    for i in 1..20 {
         let num_to_try = i * base_try;
 
         let mut book = OrderBook::<OrderSpec>::new(num_to_try as usize);
@@ -25,18 +25,6 @@ fn perf_order_book_test() {
             break;
         }
     }
-
-    // for i in 1..10 {
-    //     let num_to_try = i * base_try;
-
-    //     let mut book = OrderBook::<OrderSpec>::new(num_to_try as usize);
-    //     let stress_insert = stress_insert(&mut book, duration_secs, num_to_try);
-    //     let stress = stress_cancel_test(&mut book, duration_secs, num_to_try);
-
-    //     if stress_insert && stress {
-    //         break;
-    //     }
-    // }
 }
 
 fn stress_insert(book: &mut OrderBook<OrderSpec>, duration_secs: u64, num_to_try: u64) -> bool {
@@ -94,6 +82,8 @@ fn stress_insert(book: &mut OrderBook<OrderSpec>, duration_secs: u64, num_to_try
         order_count += 1;
     }
 
+    let elapsed = (Instant::now() - start).as_millis();
+
     println!(
         "- Active Bids {}, Active Bids {} - \n",
         book.bids().len(),
@@ -110,6 +100,12 @@ fn stress_insert(book: &mut OrderBook<OrderSpec>, duration_secs: u64, num_to_try
         let remain: usize = book.bids().len() + book.asks().len();
         println!("Run matched {} orders\n", order_count - remain);
     } else {
+        println!(
+            "Inserted {} orders in {} milliseconds, or {} insertions per seconds",
+            order_count,
+            elapsed,
+            order_count as u64 * 1000 / elapsed as u64
+        );
         println!("- not enough orders - \n");
     }
 
@@ -181,6 +177,8 @@ fn stress_test(book: &mut OrderBook<OrderSpec>, duration_secs: u64, num_to_try: 
         order_count += 1;
     }
 
+    let elapsed = (Instant::now() - start).as_millis();
+
     println!(
         "- Active Bids {}, Active Bids {} - \n",
         book.bids().len(),
@@ -197,6 +195,12 @@ fn stress_test(book: &mut OrderBook<OrderSpec>, duration_secs: u64, num_to_try: 
         let remain: usize = book.bids().len() + book.asks().len();
         println!("Run matched {} orders\n", order_count - remain);
     } else {
+        println!(
+            "Inserted {} orders in {} milliseconds, or {} insertions per seconds",
+            order_count,
+            elapsed,
+            order_count as u64 * 1000 / elapsed as u64
+        );
         println!("- not enough orders - \n");
     }
 

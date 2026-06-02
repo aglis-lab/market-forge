@@ -7,7 +7,7 @@
 - ✨ Written in **Rust** for safety, concurrency, and performance
 - 🔁 Efficient **limit order book** matching logic
 - 🧩 Modular and easy to integrate into trading systems
-- ♻️ A clean rewrite of the proven Liquibook engine
+- ♻️ Seems clean for me, hahahh
 
 ## 📦 Features
 
@@ -18,6 +18,8 @@
 ## 📚 Example
 
 ### Order Spec Implementation
+
+You can implement your own Order trait but the default should be already sufficient enough for most usecases.
 
 ```rust
 use market_forge::{order::OrderSide, order_book::OrderBook, order_spec::OrderSpec};
@@ -39,27 +41,33 @@ let result = book.add(&order);
 
 ## ✅ TODO
 
-- [x] Insert Order
-- [x] Cancel Order
-- [ ] Replace Order
-- [ ] Recover Order
+- ✅ Insert Order
+- ✅ Cancel Order
+- ⬜ Replace Order
+- ⬜ Recover Order
   - Just use it for recover order price when you missing it
   - It's very slow for high performance matching engine
 
-## ✅ TODO Order Type
+## ✅ Supported Order Type
 
-- [x] Market
-- [x] Limit
-- [x] Immediate-Or-Cancel
-- [x] Fill-Or-Kill
-- [ ] All-Or-None
-- [ ] Stop Limit
-- [ ] Stop Market
-- [ ] Stop-Loss
-- [ ] Trailing Stop
-- [ ] OCO
-- [ ] Post-Only
-- [ ] Reduce-Only
+- ✅ Market
+- ✅ Limit
+- ✅ Immediate-Or-Cancel
+- ✅ Fill-Or-Kill
+- ❌ All-Or-None
+- ❌ Stop Limit
+- ❌ Stop Market
+- ❌ Stop-Loss
+- ❌ Trailing Stop
+- ❌ OCO
+- ❌ Post-Only
+- ❌ Reduce-Only
+
+We not supporting other type not because we won't to do it. But, because we need to makesure our engine is slim and can be embedded into other system.
+
+**For most of unsupported order type it can be created as separated service**
+
+## Supported Order Type on most complete matching engine
 
 | Order Condition     | Crypto Exchanges  | Stock Exchanges | Notes                         |
 | ------------------- | ----------------- | --------------- | ----------------------------- |
