@@ -26,9 +26,27 @@ pub struct OrderBook<T: Order> {
 // Public Function
 impl<T: Order> OrderBook<T> {
     #[inline(always)]
-    pub fn new(expected_peak_order: usize) -> Self {
+    pub fn new() -> Self {
         return OrderBook {
-            order_allocator: order_allocator::OrderAllocator::with_capacity(expected_peak_order),
+            order_allocator: order_allocator::OrderAllocator::new(),
+            asks: OrderMap::new(),
+            bids: OrderMap::new(),
+        };
+    }
+
+    #[inline(always)]
+    pub fn with_capacity(capacity: usize) -> Self {
+        return OrderBook {
+            order_allocator: order_allocator::OrderAllocator::with_capacity(capacity),
+            asks: OrderMap::new(),
+            bids: OrderMap::new(),
+        };
+    }
+
+    #[inline(always)]
+    pub fn default() -> Self {
+        return OrderBook {
+            order_allocator: order_allocator::OrderAllocator::default(),
             asks: OrderMap::new(),
             bids: OrderMap::new(),
         };
