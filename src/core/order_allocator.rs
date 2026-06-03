@@ -4,6 +4,13 @@ const DEFAULT_CAPACITY: usize = 1024;
 
 pub type AllocatorIndex = u64;
 
+// TODO: Use OrderNode to used with orderqueue
+pub struct OrderNode<T> {
+    order: T,
+    prev_idx: Option<AllocatorIndex>,
+    next_idx: Option<AllocatorIndex>,
+}
+
 pub struct OrderAllocator<T>
 where
     T: Order,
