@@ -14,7 +14,7 @@ mod tests {
     fn order_spec_test() {
         println!("OrderSpec size: {} bytes", mem::size_of::<OrderSpec>());
 
-        let mut book = OrderBook::<OrderSpec>::new(100);
+        let mut book = OrderBook::<OrderSpec>::with_capacity(100);
 
         _ = book.insert_order(&OrderSpec::limit_price(1, OrderSide::Sell, 121, 12));
         _ = book.insert_order(&OrderSpec::limit_price(2, OrderSide::Sell, 120, 8));
@@ -42,7 +42,7 @@ mod tests {
 
     #[test]
     fn order_spec_ioc_test() {
-        let mut book = OrderBook::<OrderSpec>::new(100);
+        let mut book = OrderBook::<OrderSpec>::with_capacity(100);
 
         _ = book.insert_order(&OrderSpec::limit_price(1, OrderSide::Sell, 121, 12));
         println!("{}", book);
@@ -109,7 +109,7 @@ mod tests {
 
     #[test]
     fn order_spec_fok_test() {
-        let mut book = OrderBook::<OrderSpec>::new(10);
+        let mut book = OrderBook::<OrderSpec>::with_capacity(10);
 
         _ = book.insert_order(&OrderSpec::limit_price(1, OrderSide::Sell, 119, 12));
         _ = book.insert_order(&OrderSpec::limit_price(2, OrderSide::Sell, 120, 8));
@@ -161,7 +161,7 @@ mod tests {
 
     #[test]
     fn order_market_test() {
-        let mut book = OrderBook::<OrderSpec>::new(100);
+        let mut book = OrderBook::<OrderSpec>::with_capacity(100);
 
         _ = book.insert_order(&OrderSpec::limit_price(1, OrderSide::Sell, 121, 12));
         _ = book.insert_order(&OrderSpec::limit_price(2, OrderSide::Sell, 120, 8));
@@ -236,7 +236,7 @@ mod tests {
 
     #[test]
     fn order_cancel_test() {
-        let mut book = OrderBook::<OrderSpec>::new(100);
+        let mut book = OrderBook::<OrderSpec>::with_capacity(100);
 
         _ = book.insert_order(&OrderSpec::limit_price(1, OrderSide::Sell, 121, 12));
         _ = book.insert_order(&OrderSpec::limit_price(2, OrderSide::Sell, 120, 8));
@@ -272,7 +272,7 @@ mod tests {
     fn order_replace_test() {
         println!("OrderSpec size: {} bytes", mem::size_of::<OrderSpec>());
 
-        let mut book = OrderBook::<OrderSpec>::new(100);
+        let mut book = OrderBook::<OrderSpec>::with_capacity(100);
 
         _ = book.insert_order(&OrderSpec::limit_price(1, OrderSide::Sell, 121, 12));
         _ = book.insert_order(&OrderSpec::limit_price(2, OrderSide::Sell, 120, 8));
