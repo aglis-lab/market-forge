@@ -10,13 +10,13 @@ use market_forge::core::{
 };
 use std::time::{Duration, Instant};
 
-// const SIZES_PERF_CANCEL: [usize; 5] = [
-//     100_000usize,
-//     250_000usize,
-//     500_000usize,
-//     700_000usize,
-//     1_000_000usize,
-// ];
+const SIZES_PERF_CANCEL: [usize; 5] = [
+    100_000usize,
+    250_000usize,
+    500_000usize,
+    700_000usize,
+    1_000_000usize,
+];
 
 // const SIZES_PERF_REPLACE: [usize; 5] = [
 //     100_000usize,
@@ -66,30 +66,35 @@ fn bench_perf_matching(c: &mut Criterion) {
     group.finish();
 }
 
-// fn bench_perf_cancel(c: &mut Criterion) {
-//     let mut group = c.benchmark_group("perf_order_cancel");
-//     group.measurement_time(Duration::from_secs(5));
-//     group.warm_up_time(Duration::from_secs(1));
-//     group.sample_size(20);
+fn bench_perf_cancel(c: &mut Criterion) {
+    let mut group = c.benchmark_group("perf_order_cancel");
+    group.measurement_time(Duration::from_secs(5));
+    group.warm_up_time(Duration::from_secs(1));
+    group.sample_size(20);
 
-//     for &num in &SIZES_PERF_CANCEL {
-//         let orders = make_orders(num, num as u64 + 1);
-//         // Count both insert and cancel operations
-//         group.throughput(Throughput::Elements((num as u64) * 2));
+    for &num in &SIZES_PERF_CANCEL {
+        let mut book = OrderBook::<OrderSpec>::default();
 
-//         group.bench_with_input(BenchmarkId::from_parameter(num), &num, |b, &_num| {
-//             b.iter_custom(|iters| {
-//                 let start = Instant::now();
-//                 for _ in 0..iters {
-//                     insert_then_cancel_once(&orders);
-//                 }
-//                 start.elapsed()
-//             })
-//         });
-//     }
+        let orders = make_orders(num, num as u64 + 1);
 
-//     group.finish();
-// }
+        insert_only(&mut book, &orders);
+
+        // Count both insert and cancel operations
+        group.throughput(Throughput::Elements(num as u64));
+
+        group.bench_with_input(BenchmarkId::from_parameter(num), &num, |b, &_num| {
+            b.iter_custom(|iters| {
+                let start = Instant::now();
+                for _ in 0..iters {
+                    cancel_only(&mut book, &orders);
+                }
+                start.elapsed()
+            })
+        });
+    }
+
+    group.finish();
+}
 
 // fn bench_perf_replace(c: &mut Criterion) {
 //     let mut group = c.benchmark_group("perf_order_replace");
@@ -191,18 +196,23 @@ fn insert_orders_once(orders: &[OrderSpec]) {
     }
 }
 
-// fn insert_then_cancel_once(orders: &[OrderSpec]) {
-//     let mut book = OrderBook::<OrderSpec>::default();
-//     for order in orders {
-//         let _ = book.insert_order(order);
-//     }
-//     for order in orders {
-//         let _ = book.cancel_order(&OrderSpec::cancel(order.id, order.order_side, order.price));
-//     }
-//     if let Some(err) = book.validate_cache().err() {
-//         panic!("{:?}", err);
-//     }
-// }
+fn insert_only(book: &mut OrderBook<OrderSpec>, orders: &[OrderSpec]) {
+    for order in orders {
+        let _ = book.insert_order(order);
+    }
+    if let Some(err) = book.validate_cache().err() {
+        panic!("{:?}", err);
+    }
+}
+
+fn cancel_only(book: &mut OrderBook<OrderSpec>, orders: &[OrderSpec]) {
+    for order in orders {
+        let _ = book.cancel_order(&OrderSpec::cancel(order.id, order.order_side, order.price));
+    }
+    if let Some(err) = book.validate_cache().err() {
+        panic!("{:?}", err);
+    }
+}
 
 // fn insert_then_replace_once(orders: &[OrderSpec]) {
 //     let mut book = OrderBook::<OrderSpec>::default();
@@ -257,7 +267,7 @@ fn insert_orders_once(orders: &[OrderSpec]) {
 criterion_group!(
     benches,
     bench_perf_matching,
-    // bench_perf_cancel,
+    bench_perf_cancel,
     // bench_perf_replace,
     // bench_perf_combine
 );

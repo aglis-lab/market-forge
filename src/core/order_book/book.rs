@@ -1,18 +1,15 @@
 use crate::{
-    core::{order, order_allocator, order_map},
+    core::{book_side, order, order_allocator, price_level},
     utils::ReverseOrd,
 };
-
-type PriceLevelBids = order_map::OrderMap<ReverseOrd<order::Price>>;
-type PriceLevelAsks = order_map::OrderMap<order::Price>;
 
 pub struct OrderBook<T: order::Order> {
     // Memory Allocator
     pub(super) order_allocator: order_allocator::OrderAllocator<T>,
 
     // Bids and Asks
-    pub(super) bids: PriceLevelBids,
-    pub(super) asks: PriceLevelAsks,
+    pub(super) bids: book_side::BookSide<ReverseOrd<order::Price>>,
+    pub(super) asks: book_side::BookSide<order::Price>,
 }
 
 // Instantiate OrderBook
@@ -21,8 +18,8 @@ impl<T: order::Order> OrderBook<T> {
     pub fn new() -> Self {
         return OrderBook {
             order_allocator: order_allocator::OrderAllocator::new(),
-            bids: PriceLevelBids::new(),
-            asks: PriceLevelAsks::new(),
+            bids: book_side::BookSide::new(),
+            asks: book_side::BookSide::new(),
         };
     }
 
@@ -30,8 +27,8 @@ impl<T: order::Order> OrderBook<T> {
     pub fn with_capacity(capacity: usize) -> Self {
         return OrderBook {
             order_allocator: order_allocator::OrderAllocator::with_capacity(capacity),
-            asks: PriceLevelAsks::new(),
-            bids: PriceLevelBids::new(),
+            asks: book_side::BookSide::new(),
+            bids: book_side::BookSide::new(),
         };
     }
 
@@ -39,8 +36,8 @@ impl<T: order::Order> OrderBook<T> {
     pub fn default() -> Self {
         return OrderBook {
             order_allocator: order_allocator::OrderAllocator::default(),
-            asks: PriceLevelAsks::new(),
-            bids: PriceLevelBids::new(),
+            asks: book_side::BookSide::new(),
+            bids: book_side::BookSide::new(),
         };
     }
 
@@ -59,9 +56,9 @@ impl<T: order::Order> OrderBook<T> {
     #[inline(always)]
     pub(super) fn peek_top_price(&self, is_bids: bool) -> Option<&order::Price> {
         if is_bids {
-            return self.bids.peek_key().map(|i| &i.0);
+            return self.bids.peek_price().map(|i| &i.0);
         } else {
-            return self.asks.peek_key();
+            return self.asks.peek_price();
         }
     }
 
@@ -114,11 +111,15 @@ impl<T: order::Order> OrderBook<T> {
     }
 
     #[inline(always)]
-    pub(super) fn remove_orders(&mut self, is_bids: bool, top_price: &order::Price) {
+    pub(super) fn remove_price(
+        &mut self,
+        is_bids: bool,
+        top_price: &order::Price,
+    ) -> Option<price_level::PriceLevel> {
         if is_bids {
-            self.bids.remove_orders(&ReverseOrd::new(*top_price));
+            self.bids.remove_price(&ReverseOrd::new(*top_price))
         } else {
-            self.asks.remove_orders(&top_price);
+            self.asks.remove_price(&top_price)
         }
     }
 
@@ -137,6 +138,29 @@ impl<T: order::Order> OrderBook<T> {
             self.set_total_quantity(is_bids, self.bids.total_quantity() - quantity);
         } else {
             self.set_total_quantity(is_bids, self.asks.total_quantity() - quantity);
+        }
+    }
+
+    // #[inline(always)]
+    // pub(super) fn get_price_levels(&self, order: &T) -> Option<&price_level::PriceLevel> {
+    //     if order.is_buy() {
+    //         return self.bids.get_price_level(&ReverseOrd::new(order.price()));
+    //     } else {
+    //         return self.asks.get_price_level(&order.price());
+    //     }
+    // }
+
+    #[inline(always)]
+    pub(super) fn get_price_levels_mut(
+        &mut self,
+        order: &T,
+    ) -> Option<&mut price_level::PriceLevel> {
+        if order.is_buy() {
+            return self
+                .bids
+                .get_price_level_mut(&ReverseOrd::new(order.price()));
+        } else {
+            return self.asks.get_price_level_mut(&order.price());
         }
     }
 }

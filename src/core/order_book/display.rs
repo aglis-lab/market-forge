@@ -14,39 +14,84 @@ impl<T: order::Order> std::fmt::Display for OrderBook<T> {
         );
 
         let mut builder = Builder::new();
-        builder.push_record(["Bids", "Total", "Asks", "Total"]);
+        builder.push_record([
+            "Bid Price",
+            "Bid Qty",
+            "Bid Head",
+            "Bid Tail",
+            "Bid Level Len",
+            "Ask Price",
+            "Ask Qty",
+            "Ask Head",
+            "Ask Tail",
+            "Ask Level Len",
+        ]);
 
         // Reverse bids for descending order (as bid books are usually displayed)
-        let bids: Vec<_> = self.bids.orders().iter().collect();
-        let asks: Vec<_> = self.asks.orders().iter().collect();
+        let bids: Vec<_> = self.bids.iter().collect();
+        let asks: Vec<_> = self.asks.iter().collect();
         let max_len = bids.len().max(asks.len());
 
         for i in 0..max_len {
-            let (bid_price, bid_qty) = bids
+            let (bid_price, bid_qty, bid_head, bid_tail, bid_level_length) = bids
                 .get(i)
-                .map(|(p, o)| {
+                .map(|(p, level)| {
                     (
                         p.0.to_string(),
-                        format!("{}({})", o.orders_quantity().to_string(), o.len()),
+                        format!("{}({})", level.quantity().to_string(), level.len()),
+                        level.head().to_string(),
+                        level.tail().to_string(),
+                        level.len().to_string(),
                     )
                 })
-                .unwrap_or(("".to_string(), "".to_string()));
+                .unwrap_or((
+                    "".to_string(),
+                    "".to_string(),
+                    "".to_string(),
+                    "".to_string(),
+                    "".to_string(),
+                ));
 
-            let (ask_price, ask_qty) = asks
+            let (ask_price, ask_qty, ask_head, ask_tail, ask_level_length) = asks
                 .get(i)
-                .map(|(p, o)| {
+                .map(|(p, level)| {
                     (
                         p.to_string(),
-                        format!("{}({})", o.orders_quantity().to_string(), o.len()),
+                        format!("{}({})", level.quantity().to_string(), level.len()),
+                        level.head().to_string(),
+                        level.tail().to_string(),
+                        level.len().to_string(),
                     )
                 })
-                .unwrap_or(("".to_string(), "".to_string()));
+                .unwrap_or((
+                    "".to_string(),
+                    "".to_string(),
+                    "".to_string(),
+                    "".to_string(),
+                    "".to_string(),
+                ));
 
-            builder.push_record([bid_price, bid_qty, ask_price, ask_qty]);
+            builder.push_record([
+                bid_price,
+                bid_qty,
+                bid_head,
+                bid_tail,
+                bid_level_length,
+                ask_price,
+                ask_qty,
+                ask_head,
+                ask_tail,
+                ask_level_length,
+            ]);
         }
 
         let mut table = builder.build();
         let temp = table.with(Style::modern_rounded());
-        write!(f, "{temp}")
+        write!(f, "{temp}")?;
+
+        // Display Order Allocator
+        write!(f, "{}", self.order_allocator)?;
+
+        Ok(())
     }
 }
