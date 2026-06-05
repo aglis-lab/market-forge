@@ -18,15 +18,15 @@ impl ProcessMatchResult {
 
 impl<T: order::Order> OrderBook<T> {
     pub fn insert_order(&mut self, order: &T) -> Vec<order_match::OrderMatch> {
+        let mut matches = Vec::new();
         // Check if FOK
         // return early if not match quantity
         if order.is_fill_or_kill() && !self.has_sufficient_quantity(order) {
-            return Vec::new();
+            return matches;
         }
 
         // Match Order
         let mut order = order.clone();
-        let mut matches = Vec::with_capacity(4); // Pre-allocate for common case of 1-2 matches
         while let Some(&top_price) = self.peek_top_price(order.is_sell()) {
             if order.is_limit_price() {
                 if !self.is_match_price(&order.order_side(), order.price(), top_price) {
@@ -39,7 +39,7 @@ impl<T: order::Order> OrderBook<T> {
             }
         }
 
-        // Partial match
+        // Partial match only for non-IOC or FOK order
         // Insert the remaining order to book if it is not fully matched
         if !order.is_immediate_or_cancel() && order.quantity() > 0 {
             let allocator_idx = self
@@ -85,7 +85,7 @@ impl<T: order::Order> OrderBook<T> {
             .clone();
 
         // Check if price level and order have sufficient quantity to match
-        while price_level.len() > 0 && price_level.quantity() > 0 && incoming_order.quantity() > 0 {
+        while price_level.quantity() > 0 && incoming_order.quantity() > 0 {
             log::debug!(
                 "Matching at price level: {}, price level quantity: {}, incoming order quantity: {}",
                 top_price,

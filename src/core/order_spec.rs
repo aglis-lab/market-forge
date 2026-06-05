@@ -83,6 +83,25 @@ impl OrderSpec {
             time_in_force: TimeInForce::GTC, // Default to GTC
         }
     }
+
+    // Copy TimeInForce
+    #[inline(always)]
+    pub fn with_time_in_force(mut self, time_in_force: TimeInForce) -> Self {
+        self.set_time_in_force(time_in_force);
+        return self;
+    }
+
+    #[inline(always)]
+    pub fn with_price(mut self, new_price: Price) -> Self {
+        self.set_price(new_price);
+        return self;
+    }
+
+    #[inline(always)]
+    pub fn with_quantity(mut self, new_quantity: Quantity) -> Self {
+        self.set_quantity(new_quantity);
+        return self;
+    }
 }
 
 impl Order for OrderSpec {
@@ -139,6 +158,32 @@ impl Order for OrderSpec {
     #[inline(always)]
     fn set_time_in_force(&mut self, time_in_force: TimeInForce) {
         self.time_in_force = time_in_force;
+    }
+
+    fn is_market(&self) -> bool {
+        self.order_type.is_market()
+    }
+
+    fn is_limit_price(&self) -> bool {
+        self.order_type.is_limit()
+    }
+
+    // Good Till Cancel
+    #[inline(always)]
+    fn good_till_cancel(&self) -> bool {
+        return self.time_in_force() == TimeInForce::GTC;
+    }
+
+    // is immediate or cancel
+    #[inline(always)]
+    fn is_immediate_or_cancel(&self) -> bool {
+        return self.time_in_force() == TimeInForce::IOC;
+    }
+
+    // is fill or kill
+    #[inline(always)]
+    fn is_fill_or_kill(&self) -> bool {
+        return self.time_in_force() == TimeInForce::FOK;
     }
 }
 

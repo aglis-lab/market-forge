@@ -1,5 +1,4 @@
 use core::fmt;
-use std::collections;
 
 use crate::core::order::{self, Order};
 use tabled::{builder::Builder, settings::Style};
@@ -20,7 +19,7 @@ where
     T: Order,
 {
     inner: slab::Slab<OrderNode<T>>,
-    inner_map: collections::HashMap<order::OrderId, AllocatorIndex>,
+    inner_map: rustc_hash::FxHashMap<order::OrderId, AllocatorIndex>,
 }
 
 impl<T> OrderNode<T>
@@ -75,7 +74,7 @@ where
     pub fn new() -> Self {
         return OrderAllocator {
             inner: slab::Slab::new(),
-            inner_map: collections::HashMap::new(),
+            inner_map: rustc_hash::FxHashMap::default(),
         };
     }
 
@@ -83,7 +82,10 @@ where
     pub fn with_capacity(capacity: usize) -> Self {
         return OrderAllocator {
             inner: slab::Slab::with_capacity(capacity),
-            inner_map: collections::HashMap::with_capacity(capacity),
+            inner_map: rustc_hash::FxHashMap::with_capacity_and_hasher(
+                capacity,
+                Default::default(),
+            ),
         };
     }
 

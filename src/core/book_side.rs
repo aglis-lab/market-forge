@@ -33,22 +33,21 @@ impl<P: Ord + Clone> BookSide<P> {
         allocator_idx: order_allocator::AllocatorIndex,
         quantity: order::Quantity,
     ) -> Option<order_allocator::AllocatorIndex> {
+        let mut prev_tail = None;
+
         self.total_quantity += quantity;
+        self.price_levels
+            .entry(key.clone())
+            .and_modify(|price_level| {
+                prev_tail = Some(price_level.tail());
 
-        if let Some(price_level) = self.price_levels.get_mut(&key) {
-            let prev_tail = price_level.tail();
+                price_level.set_quantity(price_level.quantity() + quantity);
+                price_level.set_tail(allocator_idx);
+                price_level.set_len(price_level.len() + 1);
+            })
+            .or_insert_with(|| price_level::PriceLevel::new(allocator_idx, quantity));
 
-            price_level.set_quantity(price_level.quantity() + quantity);
-            price_level.set_tail(allocator_idx);
-            price_level.set_len(price_level.len() + 1);
-
-            return Some(prev_tail);
-        } else {
-            self.price_levels
-                .insert(key, price_level::PriceLevel::new(allocator_idx, quantity));
-        }
-
-        return None;
+        return prev_tail;
     }
 
     #[inline(always)]
