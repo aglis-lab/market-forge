@@ -1,7 +1,10 @@
+use core::fmt;
+
 use crate::core::{order, order_allocator};
 
 // Represents a price level in the order book
 // Head <-|--|--|--|--|--|--|--|--|--|-> Tail
+#[derive(Debug, Clone)]
 pub struct PriceLevel {
     head: order_allocator::AllocatorIndex,
     tail: order_allocator::AllocatorIndex,
@@ -56,6 +59,11 @@ impl PriceLevel {
     }
 
     #[inline(always)]
+    pub fn is_empty(&self) -> bool {
+        return self.len == 0;
+    }
+
+    #[inline(always)]
     pub fn quantity(&self) -> order::Quantity {
         self.quantity
     }
@@ -63,6 +71,16 @@ impl PriceLevel {
     #[inline(always)]
     pub fn set_quantity(&mut self, quantity: order::Quantity) {
         self.quantity = quantity;
+    }
+}
+
+impl fmt::Display for PriceLevel {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "PriceLevel {{ head: {}, tail: {}, len: {}, quantity: {} }}",
+            self.head, self.tail, self.len, self.quantity
+        )
     }
 }
 

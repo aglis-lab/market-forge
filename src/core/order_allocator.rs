@@ -182,3 +182,19 @@ where
         write!(f, "{}", temp)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::core::order_spec::OrderSpec;
+
+    use super::*;
+    use std::mem::size_of;
+
+    #[test]
+    fn show_order_node_size() {
+        let size = size_of::<OrderNode<OrderSpec>>();
+        // Print size; run tests with `-- --nocapture` to see this output.
+        println!("OrderNode<OrderSpec> size: {} bytes", size);
+        assert!(size > 0);
+    }
+}

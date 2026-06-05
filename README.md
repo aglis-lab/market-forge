@@ -50,11 +50,13 @@ let result = book.add(&order);
 
 ## ✅ Supported Order Type
 
-- ✅ Market
-- ✅ Limit
-- ✅ Immediate-Or-Cancel
-- ✅ Fill-Or-Kill
-- ❌ All-Or-None
+✅ Market Order — Executes immediately against the best available prices in the order book. Prioritizes execution speed over price certainty. May experience slippage if liquidity is limited.
+✅ Limit Order — Executes only at the specified price or better. Provides price control but does not guarantee execution if the market never reaches the limit price.
+✅ Immediate-Or-Cancel (IOC) — Attempts to execute immediately. Any portion that cannot be filled instantly is canceled. Allows partial fills but leaves no remaining order on the book.
+✅ Fill-Or-Kill (FOK) — Must be filled completely and immediately. If the entire quantity cannot be executed at once, the whole order is canceled. No partial fills are allowed.
+
+- ⬜ All-Or-None - Must be filled completely and no need immeadiately. If the entire quantity cannot be executed at once, the order will be saved into orderbook and wait until new order can full fill the order.
+
 - ❌ Stop Limit
 - ❌ Stop Market
 - ❌ Stop-Loss

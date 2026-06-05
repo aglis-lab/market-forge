@@ -49,6 +49,18 @@ impl<T: order::Order> OrderBook<T> {
 
         return Ok(());
     }
+
+    // Never modify use bids directly
+    #[inline(always)]
+    pub fn bids(&self) -> &book_side::BookSide<ReverseOrd<order::Price>> {
+        &self.bids
+    }
+
+    // Never modify use asks directly
+    #[inline(always)]
+    pub fn asks(&self) -> &book_side::BookSide<order::Price> {
+        &self.asks
+    }
 }
 
 // OrderBook common Methods, use only for parent module
@@ -111,7 +123,7 @@ impl<T: order::Order> OrderBook<T> {
     }
 
     #[inline(always)]
-    pub(super) fn remove_price(
+    pub(super) fn remove_price_level(
         &mut self,
         is_bids: bool,
         top_price: &order::Price,
@@ -140,27 +152,29 @@ impl<T: order::Order> OrderBook<T> {
             self.set_total_quantity(is_bids, self.asks.total_quantity() - quantity);
         }
     }
-
-    // #[inline(always)]
-    // pub(super) fn get_price_levels(&self, order: &T) -> Option<&price_level::PriceLevel> {
-    //     if order.is_buy() {
-    //         return self.bids.get_price_level(&ReverseOrd::new(order.price()));
-    //     } else {
-    //         return self.asks.get_price_level(&order.price());
-    //     }
-    // }
+    #[inline(always)]
+    pub(super) fn get_price_level(
+        &mut self,
+        is_bids: bool,
+        price: order::Price,
+    ) -> Option<&price_level::PriceLevel> {
+        if is_bids {
+            return self.bids.get_price_level(&ReverseOrd::new(price));
+        } else {
+            return self.asks.get_price_level(&price);
+        }
+    }
 
     #[inline(always)]
-    pub(super) fn get_price_levels_mut(
+    pub(super) fn get_price_level_mut(
         &mut self,
-        order: &T,
+        is_bids: bool,
+        price: order::Price,
     ) -> Option<&mut price_level::PriceLevel> {
-        if order.is_buy() {
-            return self
-                .bids
-                .get_price_level_mut(&ReverseOrd::new(order.price()));
+        if is_bids {
+            return self.bids.get_price_level_mut(&ReverseOrd::new(price));
         } else {
-            return self.asks.get_price_level_mut(&order.price());
+            return self.asks.get_price_level_mut(&price);
         }
     }
 }

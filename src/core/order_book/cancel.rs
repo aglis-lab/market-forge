@@ -3,7 +3,6 @@ use crate::core::{order, order_book::OrderBook, order_error};
 impl<T: order::Order> OrderBook<T> {
     pub fn cancel_order(&mut self, order: &T) -> Result<T, order_error::OrderError> {
         // Get Order Index and Order Meta from orders
-        // TODO: Refactor to return order allocator index and order id directly from orders
         let (order_node_alloc_idx, prev_order_node_idx, next_order_node_idx) = {
             let (order_node_alloc_idx, order_node) = self
                 .order_allocator
@@ -37,7 +36,7 @@ impl<T: order::Order> OrderBook<T> {
 
         // Get mutable orders
         let price_level = self
-            .get_price_levels_mut(order)
+            .get_price_level_mut(order.order_side().is_sell(), order.price())
             .ok_or(order_error::OrderError::OrdersNotFound)?;
 
         price_level.set_quantity(price_level.quantity() - order.quantity());
@@ -59,7 +58,7 @@ impl<T: order::Order> OrderBook<T> {
 
         // Check if no order leave at orders
         if price_level.len() == 0 {
-            self.remove_price(order.is_buy(), &order.price());
+            self.remove_price_level(order.order_side().is_sell(), &order.price());
         }
 
         // Decrease Total Quantity

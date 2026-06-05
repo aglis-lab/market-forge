@@ -87,7 +87,7 @@ impl<T: order::Order> std::fmt::Display for OrderBook<T> {
 
         let mut table = builder.build();
         let temp = table.with(Style::modern_rounded());
-        write!(f, "{temp}")?;
+        write!(f, "{temp}\n\n")?;
 
         // Display Order Allocator
         write!(f, "{}", self.order_allocator)?;

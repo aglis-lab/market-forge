@@ -69,7 +69,6 @@ impl<P: Ord + Clone> BookSide<P> {
     #[inline(always)]
     pub fn remove_price(&mut self, key: &P) -> Option<price_level::PriceLevel> {
         if let Some(price_level) = self.price_levels.remove(key) {
-            self.total_quantity -= price_level.quantity();
             Some(price_level)
         } else {
             None
