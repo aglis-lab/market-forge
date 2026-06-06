@@ -2,12 +2,14 @@
 mod tests {
     use std::mem;
 
-    use market_forge::core::{
-        order::{Order, OrderSide, TimeInForce},
-        order_book::OrderBook,
-        order_error::OrderError,
-        order_match::OrderMatch,
-        order_spec::OrderSpec,
+    use market_forge::{
+        core::{
+            error::OrderError,
+            order::{OrderSide, TimeInForce},
+            order_book::{self, OrderBook, Trade},
+            order_spec::OrderSpec,
+        },
+        utils::ReverseOrd,
     };
 
     #[test]
@@ -131,8 +133,8 @@ mod tests {
         );
         // Should match None
         assert_eq!(
-            res,
-            vec![OrderMatch {
+            *res,
+            vec![Trade {
                 match_from_id: 4,
                 match_to_id: 1,
                 order_side: OrderSide::Buy,
@@ -232,15 +234,13 @@ mod tests {
         _ = book.insert_order(&OrderSpec::limit_price(4, OrderSide::Sell, 118, 5));
 
         assert!(
-            book.cancel_order(&OrderSpec::cancel(5, OrderSide::Sell, 118))
-                .is_err(),
+            book.cancel_order(5).is_err(),
             "Canceling order id 5 should return an error"
         );
 
         assert!(
-            book.cancel_order(&OrderSpec::cancel(4, OrderSide::Sell, 118))
-                .is_ok(),
-            "Canceling order id 4 should return an ok"
+            book.cancel_order(1).is_ok(),
+            "Canceling order id 1 should return an ok"
         );
 
         assert_eq!(
@@ -256,35 +256,110 @@ mod tests {
         }
     }
 
-    // #[test]
-    // fn order_replace_test() {
-    //     println!("OrderSpec size: {} bytes", mem::size_of::<OrderSpec>());
+    #[test]
+    fn order_replace_test() {
+        let mut book = OrderBook::<OrderSpec>::with_capacity(100);
 
-    //     let mut book = OrderBook::<OrderSpec>::with_capacity(100);
+        _ = book.insert_order(&OrderSpec::limit_price(1, OrderSide::Sell, 121, 12));
+        _ = book.insert_order(&OrderSpec::limit_price(2, OrderSide::Sell, 120, 8));
+        _ = book.insert_order(&OrderSpec::limit_price(3, OrderSide::Sell, 120, 2));
+        _ = book.insert_order(&OrderSpec::limit_price(4, OrderSide::Sell, 118, 5));
 
-    //     _ = book.insert_order(&OrderSpec::limit_price(1, OrderSide::Sell, 121, 12));
-    //     _ = book.insert_order(&OrderSpec::limit_price(2, OrderSide::Sell, 120, 8));
-    //     _ = book.insert_order(&OrderSpec::limit_price(3, OrderSide::Sell, 120, 2));
-    //     _ = book.insert_order(&OrderSpec::limit_price(4, OrderSide::Sell, 118, 5));
+        _ = book.insert_order(&OrderSpec::limit_price(5, OrderSide::Buy, 115, 2));
+        _ = book.insert_order(&OrderSpec::limit_price(6, OrderSide::Buy, 116, 15));
 
-    //     _ = book.insert_order(&OrderSpec::limit_price(5, OrderSide::Buy, 115, 2));
-    //     _ = book.insert_order(&OrderSpec::limit_price(6, OrderSide::Buy, 116, 15));
+        // Replace Order Id 5 Quantity from 2 to 0
+        let should_err = book.replace_order(order_book::ReplaceOrder {
+            order_id: 5,
+            new_price: 0,
+            quantity_delta: -2,
+        });
 
-    //     // Replace Order Id 5 Quantity
-    //     let should_err = book.replace_order(&OrderSpec::replace(5, OrderSide::Buy, 115), -2, 0);
+        assert_eq!(
+            should_err.err(),
+            Some(OrderError::InvalidQuantityDelta),
+            "Invalid quantity delta should return error"
+        );
+        println!("{}", book);
 
-    //     //
+        // Check validation
+        if let Some(err) = book.validate_cache().err() {
+            panic!("{:?}", err);
+        }
+    }
 
-    //     assert_eq!(
-    //         should_err.err(),
-    //         Some(OrderError::OrderAlreadyFilled),
-    //         "Order Already Filled"
-    //     );
-    //     println!("{}", book);
+    #[test]
+    fn order_replace_success_test() {
+        let mut book = OrderBook::<OrderSpec>::with_capacity(100);
 
-    //     // Check validation
-    //     if let Some(err) = book.validate_cache().err() {
-    //         panic!("{:?}", err);
-    //     }
-    // }
+        _ = book.insert_order(&OrderSpec::limit_price(1, OrderSide::Sell, 121, 12));
+        _ = book.insert_order(&OrderSpec::limit_price(2, OrderSide::Sell, 120, 8));
+        _ = book.insert_order(&OrderSpec::limit_price(3, OrderSide::Sell, 120, 2));
+        _ = book.insert_order(&OrderSpec::limit_price(4, OrderSide::Sell, 118, 5));
+
+        _ = book.insert_order(&OrderSpec::limit_price(5, OrderSide::Buy, 115, 10));
+        _ = book.insert_order(&OrderSpec::limit_price(6, OrderSide::Buy, 116, 15));
+
+        // Replace Order Id 5 Quantity from 10 to 8
+        let _ = book.replace_order(order_book::ReplaceOrder {
+            order_id: 5,
+            new_price: 0,
+            quantity_delta: -2,
+        });
+
+        let should_matches = book
+            .replace_order(order_book::ReplaceOrder {
+                order_id: 6,
+                new_price: 118,
+                quantity_delta: 0,
+            })
+            .unwrap();
+
+        assert_eq!(
+            should_matches[0].quantity, 5,
+            "Replace order should match with with 5 quantity"
+        );
+
+        assert_eq!(
+            should_matches[0].match_to_id, 4,
+            "Replace order should match with order id 4"
+        );
+
+        assert_eq!(
+            *book.asks().peek_price().unwrap(),
+            120,
+            "peek price level quantity should be 120 after replace order"
+        );
+
+        assert_eq!(
+            book.asks()
+                .get_price_level(&book.asks().peek_price().unwrap())
+                .unwrap()
+                .quantity(),
+            10,
+            "peek price level quantity should be 10 after replace order"
+        );
+
+        assert_eq!(
+            book.bids().peek_price().unwrap().0,
+            118,
+            "peek price level quantity should be 118 after replace order"
+        );
+
+        assert_eq!(
+            book.bids()
+                .get_price_level(&ReverseOrd::new(book.bids().peek_price().unwrap().0))
+                .unwrap()
+                .quantity(),
+            10,
+            "peek price level quantity should be 10 after replace order"
+        );
+
+        println!("{}", book);
+
+        // Check validation
+        if let Some(err) = book.validate_cache().err() {
+            panic!("{:?}", err);
+        }
+    }
 }

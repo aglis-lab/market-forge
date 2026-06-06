@@ -4,6 +4,7 @@ use rkyv::{Archive, Deserialize, Serialize};
 
 pub type Price = u64;
 pub type Quantity = u64;
+pub type SignQuantity = i64;
 pub type OrderId = u64;
 
 pub trait Order: Clone + Debug + PartialEq {

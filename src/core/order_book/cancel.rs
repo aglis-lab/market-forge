@@ -1,69 +1,63 @@
-use crate::core::{order, order_book::OrderBook, order_error};
+use crate::core::{error, order, order_book::OrderBook};
 
 impl<T: order::Order> OrderBook<T> {
-    pub fn cancel_order(&mut self, order: &T) -> Result<T, order_error::OrderError> {
-        // Get Order Index and Order Meta from orders
-        let (order_node_alloc_idx, prev_order_node_idx, next_order_node_idx) = {
-            let (order_node_alloc_idx, order_node) = self
-                .order_allocator
-                .get_by_order_id(order.id())
-                .ok_or(order_error::OrderError::OrderNotFound)?;
-            (
-                order_node_alloc_idx,
-                order_node.prev_idx(),
-                order_node.next_idx(),
-            )
+    pub fn cancel_order(&mut self, order_id: order::OrderId) -> Result<T, error::OrderError> {
+        // Get order from order allocator, return early if order not found
+        // Delete order from allocator
+        let (order_allocator_idx, order_node) =
+            match self.order_allocator.try_remove_by_order_id(order_id) {
+                Some((idx, order_node)) => (idx, order_node),
+                None => return Err(error::OrderError::OrderNotFound),
+            };
+        let order = order_node.order();
+
+        // Get prev order and next order from order allocator and change prev and next order link
+        if let Some(prev_order_node) = order_node
+            .prev_idx()
+            .and_then(|idx| self.order_allocator.get_mut(idx))
+        {
+            prev_order_node.set_next_idx(order_node.next_idx());
+        }
+
+        if let Some(next_order_node) = order_node
+            .next_idx()
+            .and_then(|idx| self.order_allocator.get_mut(idx))
+        {
+            next_order_node.set_prev_idx(order_node.prev_idx());
+        }
+
+        // Get price level and decrease quantity, remove price level if no order left
+        // bids is buy side and asks is sell side, so we check order side to get price level
+        let price_level = match self.get_price_level_mut(order.order_side().is_buy(), order.price())
+        {
+            Some(price_level) => price_level,
+            None => return Err(error::OrderError::PriceLevelNotFound),
         };
 
-        // Set Prev Order next variable to current order next variable
-        if let Some(prev_order_node_idx) = prev_order_node_idx {
-            self.order_allocator
-                .get_mut(prev_order_node_idx)
-                .ok_or(order_error::OrderError::OrderNotFound)?
-                .set_next_idx(next_order_node_idx);
+        price_level.set_len(price_level.len() - 1);
+        if price_level.is_empty() {
+            self.remove_price_level(order.is_buy(), &order.price());
+        } else {
+            price_level.set_quantity(price_level.quantity() - order.quantity());
+            if price_level.head() == order_allocator_idx {
+                price_level.set_head(
+                    order_node
+                        .next_idx()
+                        .ok_or(error::OrderError::OrderNextIdxNotFound)?,
+                );
+            } else if price_level.tail() == order_allocator_idx {
+                price_level.set_tail(
+                    order_node
+                        .prev_idx()
+                        .ok_or(error::OrderError::OrderPrevIdxNotFound)?,
+                );
+            }
         }
 
-        // Set Next Order prev variable to current order prev variable
-        if let Some(next_order_node_idx) = next_order_node_idx {
-            self.order_allocator
-                .get_mut(next_order_node_idx)
-                .ok_or(order_error::OrderError::OrderNotFound)?
-                .set_prev_idx(prev_order_node_idx);
-        }
-
-        // Remove Order from Slab Allocator
-        self.order_allocator.try_remove(order_node_alloc_idx);
-
-        // Get mutable orders
-        let price_level = self
-            .get_price_level_mut(order.order_side().is_sell(), order.price())
-            .ok_or(order_error::OrderError::OrdersNotFound)?;
-
-        price_level.set_quantity(price_level.quantity() - order.quantity());
-
-        // Remove Slab Order
-        // let slab_order = self
-        //     .order_allocator
-        //     .try_remove(order_meta.allocator_idx())
-        //     .ok_or(order_error::OrderError::SlabFailedRemoveOrder)?;
-
-        // Get mutable orders
-        // let orders = self.get_orders_mut(&slab_order).unwrap();
-
-        // Remove Order at orders
-        // orders.remove_index(order_index);
-
-        // Set Orders Quantity
-        // orders.set_orders_quantity(orders.orders_quantity() - slab_order.quantity());
-
-        // Check if no order leave at orders
-        if price_level.len() == 0 {
-            self.remove_price_level(order.order_side().is_sell(), &order.price());
-        }
-
-        // Decrease Total Quantity
+        // Decrease total quantity
         self.decrease_total_quantity(order.is_buy(), order.quantity());
 
-        return Ok(order.clone());
+        // Return the cancel order
+        Ok(order.clone())
     }
 }

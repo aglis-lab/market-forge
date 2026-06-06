@@ -1,28 +1,20 @@
 use crate::{
-    core::{order, order_allocator, order_book::OrderBook, order_match},
+    core::{
+        order, order_allocator,
+        order_book::{OrderBook, common::ProcessMatchResult, trade},
+    },
     utils,
 };
 
-struct ProcessMatchResult {
-    next_idx: Option<order_allocator::AllocatorIndex>,
-    head_order_remaining: order::Quantity,
-    matched_quantity: order::Quantity,
-}
-
-impl ProcessMatchResult {
-    #[inline(always)]
-    fn is_head_fully_matched(&self) -> bool {
-        self.head_order_remaining == 0
-    }
-}
-
 impl<T: order::Order> OrderBook<T> {
-    pub fn insert_order(&mut self, order: &T) -> Vec<order_match::OrderMatch> {
-        let mut matches = Vec::new();
+    pub fn insert_order(&mut self, order: &T) -> &Vec<trade::Trade> {
+        // Reset the trade matches buffer before processing the new order
+        self.reset_trade_matches();
+
         // Check if FOK
         // return early if not match quantity
         if order.is_fill_or_kill() && !self.has_sufficient_quantity(order) {
-            return matches;
+            return &self.trade_matches;
         }
 
         // Match Order
@@ -34,7 +26,7 @@ impl<T: order::Order> OrderBook<T> {
                 }
             }
 
-            if !self.process_match_price(top_price, &mut order, &mut matches) {
+            if !self.process_match_price(top_price, &mut order) {
                 break;
             }
         }
@@ -63,16 +55,11 @@ impl<T: order::Order> OrderBook<T> {
             }
         }
 
-        return matches;
+        self.get_trade_matches()
     }
 
     // Return true if has sufficient quantity to match, false otherwise
-    fn process_match_price(
-        &mut self,
-        top_price: order::Price,
-        incoming_order: &mut T,
-        matches: &mut Vec<order_match::OrderMatch>,
-    ) -> bool {
+    fn process_match_price(&mut self, top_price: order::Price, incoming_order: &mut T) -> bool {
         log::debug!(
             "Processing match price: {}, incoming order: {:?}",
             top_price,
@@ -123,7 +110,7 @@ impl<T: order::Order> OrderBook<T> {
                     .set_quantity(head_order_remaining);
 
                 // Add the match result to the order matches
-                matches.push(order_match::OrderMatch {
+                self.trade_matches.push(trade::Trade {
                     order_side: incoming_order.order_side(),
                     price: top_price,
                     quantity: min_quantity,

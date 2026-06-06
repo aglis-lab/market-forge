@@ -1,13 +1,14 @@
 use crate::core::order::{OrderId, OrderSide, Price, Quantity};
 
 #[derive(Debug, PartialEq)]
-pub struct OrderMatch {
-    pub order_side: OrderSide,
+pub struct Trade {
     pub price: Price,
     pub quantity: Quantity,
 
     pub match_from_id: OrderId,
     pub match_to_id: OrderId,
+
+    pub order_side: OrderSide,
 }
 
 #[cfg(test)]
@@ -16,10 +17,10 @@ mod tests {
     use std::mem::size_of;
 
     #[test]
-    fn show_order_match_size() {
-        let size = size_of::<OrderMatch>();
+    fn show_trade_size() {
+        let size = size_of::<Trade>();
         // Print size; run tests with `-- --nocapture` to see this output.
-        println!("OrderMatch size: {} bytes", size);
+        println!("Trade size: {} bytes", size);
         assert!(size > 0);
     }
 }

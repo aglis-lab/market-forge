@@ -1,7 +1,10 @@
 use crate::{
-    core::{book_side, order, order_allocator, price_level},
+    core::{book_side, order, order_allocator, order_book::trade, price_level},
     utils::ReverseOrd,
 };
+
+const FILL_TRADE_NORMAL_CAP: usize = 10;
+const FILL_TRADE_MAX_CAP: usize = FILL_TRADE_NORMAL_CAP * 2;
 
 pub struct OrderBook<T: order::Order> {
     // Memory Allocator
@@ -10,6 +13,9 @@ pub struct OrderBook<T: order::Order> {
     // Bids and Asks
     pub(super) bids: book_side::BookSide<ReverseOrd<order::Price>>,
     pub(super) asks: book_side::BookSide<order::Price>,
+
+    // Matches orders that are being processed, used for cache consistency check
+    pub(super) trade_matches: Vec<trade::Trade>,
 }
 
 // Instantiate OrderBook
@@ -20,6 +26,7 @@ impl<T: order::Order> OrderBook<T> {
             order_allocator: order_allocator::OrderAllocator::new(),
             bids: book_side::BookSide::new(),
             asks: book_side::BookSide::new(),
+            trade_matches: Vec::with_capacity(FILL_TRADE_NORMAL_CAP),
         };
     }
 
@@ -27,6 +34,7 @@ impl<T: order::Order> OrderBook<T> {
     pub fn with_capacity(capacity: usize) -> Self {
         return OrderBook {
             order_allocator: order_allocator::OrderAllocator::with_capacity(capacity),
+            trade_matches: Vec::with_capacity(FILL_TRADE_NORMAL_CAP),
             asks: book_side::BookSide::new(),
             bids: book_side::BookSide::new(),
         };
@@ -36,6 +44,7 @@ impl<T: order::Order> OrderBook<T> {
     pub fn default() -> Self {
         return OrderBook {
             order_allocator: order_allocator::OrderAllocator::default(),
+            trade_matches: Vec::with_capacity(FILL_TRADE_NORMAL_CAP),
             asks: book_side::BookSide::new(),
             bids: book_side::BookSide::new(),
         };
@@ -175,6 +184,23 @@ impl<T: order::Order> OrderBook<T> {
             return self.bids.get_price_level_mut(&ReverseOrd::new(price));
         } else {
             return self.asks.get_price_level_mut(&price);
+        }
+    }
+
+    #[inline(always)]
+    pub(super) fn get_trade_matches(&self) -> &Vec<trade::Trade> {
+        &self.trade_matches
+    }
+
+    #[inline(always)]
+    pub(super) fn reset_trade_matches(&mut self) {
+        if self.trade_matches.capacity() > FILL_TRADE_MAX_CAP {
+            // Anomalous sweep happened — release the bloated allocation
+            // and replace with a fresh normal-sized buffer
+            self.trade_matches = Vec::with_capacity(FILL_TRADE_NORMAL_CAP);
+        } else {
+            // Normal path — just reset len, keep capacity, zero realloc
+            self.trade_matches.clear();
         }
     }
 }

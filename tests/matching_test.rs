@@ -1,9 +1,8 @@
 #[cfg(test)]
 mod tests {
     use market_forge::core::{
-        order::{Order, OrderSide, TimeInForce},
-        order_book::OrderBook,
-        order_match::OrderMatch,
+        order::{OrderSide, TimeInForce},
+        order_book::{OrderBook, Trade},
         order_spec::OrderSpec,
     };
     use std::io::Write;
@@ -157,8 +156,8 @@ mod tests {
         );
         // Should match None
         assert_eq!(
-            res,
-            vec![OrderMatch {
+            *res,
+            vec![Trade {
                 match_from_id: 4,
                 match_to_id: 1,
                 order_side: OrderSide::Buy,

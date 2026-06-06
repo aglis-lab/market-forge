@@ -1,13 +1,16 @@
 use core::fmt;
+use std::num;
 
-use crate::core::order::{self, Order};
+use crate::{
+    core::order::{self, Order},
+    nonzeroslab,
+};
 use tabled::{builder::Builder, settings::Style};
 
-const DEFAULT_CAPACITY: usize = 1024;
+const DEFAULT_CAPACITY: usize = 10_000;
 
-pub type AllocatorIndex = u64;
+pub type AllocatorIndex = num::NonZeroU32;
 
-// TODO: Use OrderNode to used with orderqueue
 pub struct OrderNode<T> {
     order: T,
     prev_idx: Option<AllocatorIndex>,
@@ -18,7 +21,7 @@ pub struct OrderAllocator<T>
 where
     T: Order,
 {
-    inner: slab::Slab<OrderNode<T>>,
+    inner: nonzeroslab::NonZeroSlab<OrderNode<T>>,
     inner_map: rustc_hash::FxHashMap<order::OrderId, AllocatorIndex>,
 }
 
@@ -73,7 +76,7 @@ where
     #[inline(always)]
     pub fn new() -> Self {
         return OrderAllocator {
-            inner: slab::Slab::new(),
+            inner: nonzeroslab::NonZeroSlab::new(),
             inner_map: rustc_hash::FxHashMap::default(),
         };
     }
@@ -81,7 +84,7 @@ where
     #[inline(always)]
     pub fn with_capacity(capacity: usize) -> Self {
         return OrderAllocator {
-            inner: slab::Slab::with_capacity(capacity),
+            inner: nonzeroslab::NonZeroSlab::with_capacity(capacity),
             inner_map: rustc_hash::FxHashMap::with_capacity_and_hasher(
                 capacity,
                 Default::default(),
@@ -96,14 +99,14 @@ where
     #[inline(always)]
     pub fn insert(&mut self, order: OrderNode<T>) -> AllocatorIndex {
         let order_id = order.order().id();
-        let idx = self.inner.insert(order) as AllocatorIndex;
+        let idx = self.inner.insert(order);
         self.inner_map.insert(order_id, idx);
         return idx;
     }
 
     #[inline(always)]
     pub fn get(&self, idx: AllocatorIndex) -> Option<&OrderNode<T>> {
-        return self.inner.get(idx as usize);
+        return self.inner.get(idx);
     }
 
     #[inline(always)]
@@ -122,14 +125,29 @@ where
 
     #[inline(always)]
     pub fn get_mut(&mut self, idx: AllocatorIndex) -> Option<&mut OrderNode<T>> {
-        return self.inner.get_mut(idx as usize);
+        return self.inner.get_mut(idx);
     }
 
     #[inline(always)]
     pub fn try_remove(&mut self, idx: AllocatorIndex) -> Option<OrderNode<T>> {
-        if let Some(order_node) = self.inner.try_remove(idx as usize) {
+        if let Some(order_node) = self.inner.remove(idx) {
             self.inner_map.remove(&order_node.order().id());
             return Some(order_node);
+        }
+
+        None
+    }
+
+    #[inline(always)]
+    pub fn try_remove_by_order_id(
+        &mut self,
+        order_id: order::OrderId,
+    ) -> Option<(AllocatorIndex, OrderNode<T>)> {
+        if let Some(&idx) = self.inner_map.get(&order_id) {
+            if let Some(order_node) = self.inner.remove(idx) {
+                self.inner_map.remove(&order_id);
+                return Some((idx, order_node));
+            }
         }
 
         None
@@ -142,7 +160,7 @@ where
 
     #[inline(always)]
     pub fn contains(&self, idx: AllocatorIndex) -> bool {
-        return self.inner.contains(idx as usize);
+        return self.inner.contains(idx);
     }
 
     #[inline(always)]
@@ -157,7 +175,7 @@ where
         idx1: AllocatorIndex,
         idx2: AllocatorIndex,
     ) -> Option<(&mut OrderNode<T>, &mut OrderNode<T>)> {
-        return self.inner.get2_mut(idx1 as usize, idx2 as usize);
+        return self.inner.get2_mut(idx1, idx2);
     }
 }
 
@@ -195,7 +213,6 @@ mod tests {
     #[test]
     fn show_order_node_size() {
         let size = size_of::<OrderNode<OrderSpec>>();
-        // Print size; run tests with `-- --nocapture` to see this output.
         println!("OrderNode<OrderSpec> size: {} bytes", size);
         assert!(size > 0);
     }
