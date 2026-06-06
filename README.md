@@ -5,14 +5,14 @@
 ## 🚀 Why Market Forge?
 
 - ✨ Written in **Rust** for safety, concurrency, and performance
-- 🔁 Efficient **limit order book** matching logic
+- 🔁 Efficient **order book** matching logic
 - 🧩 Modular and easy to integrate into trading systems
 - ♻️ Seems clean for me, hahahh
 
 ## 📦 Features
 
 - Price-time priority matching
-- Supports limit, market, and cancel orders
+- Supports limit, market, cancel orders, and replace orders
 - Unit-tested and performance-optimized core
 
 ## 📚 Example
@@ -21,22 +21,29 @@
 
 You can implement your own Order trait but the default should be already sufficient enough for most usecases.
 
+**Memory Layout & Performance:**
+
+- `OrderSpec` is **32 bytes** in size, with approximately **5-7 bytes currently reserved for future use** (padding).
+- Each order transaction consumes roughly **40-56 bytes** in memory (including allocator overhead).
+- Benchmark results: **10-14M transactions/sec** on combined workloads, demonstrating highly efficient memory utilization and cache locality.
+
 ```rust
 use market_forge::{order::OrderSide, order_book::OrderBook, order_spec::OrderSpec};
 
-let mut book = OrderBook::<OrderSpec>::new();
+// Default give pre-allocated memory
+let mut book = OrderBook::<OrderSpec>::default();
 
 let order = OrderSpec::limit_price(1, OrderSide::Sell, 121, 2);
-let result = book.add(&order);
+let result = book.insert_order(&order);
 ```
 
 ```rust
 use market_forge::{order::OrderSide, order_book::OrderBook, order_spec::OrderSpec};
 
-let mut book = OrderBook::<OrderSpec>::new();
+let mut book = OrderBook::<OrderSpec>::default();
 
 let order = OrderSpec::market(2, OrderSide::Sell, 5);
-let result = book.add(&order);
+let result = book.insert_order(&order);
 ```
 
 ## ✅ TODO
@@ -50,11 +57,13 @@ let result = book.add(&order);
 
 ## ✅ Supported Order Type
 
-- ✅ Market
-- ✅ Limit
-- ✅ Immediate-Or-Cancel
-- ✅ Fill-Or-Kill
-- ❌ All-Or-None
+✅ Market Order — Executes immediately against the best available prices in the order book. Prioritizes execution speed over price certainty. May experience slippage if liquidity is limited.
+✅ Limit Order — Executes only at the specified price or better. Provides price control but does not guarantee execution if the market never reaches the limit price.
+✅ Immediate-Or-Cancel (IOC) — Attempts to execute immediately. Any portion that cannot be filled instantly is canceled. Allows partial fills but leaves no remaining order on the book.
+✅ Fill-Or-Kill (FOK) — Must be filled completely and immediately. If the entire quantity cannot be executed at once, the whole order is canceled. No partial fills are allowed.
+
+- ⬜ All-Or-None - Must be filled completely and no need immeadiately. If the entire quantity cannot be executed at once, the order will be saved into orderbook and wait until new order can full fill the order. The order type of the All-Or-None was discarded from the project because it's pretty slow and affecting the performance of other transactions
+
 - ❌ Stop Limit
 - ❌ Stop Market
 - ❌ Stop-Loss

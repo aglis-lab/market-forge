@@ -1,8 +1,6 @@
 use rkyv::{Archive, Deserialize, Serialize};
 
-use crate::core::order::{
-    ExecutionCondition, Order, OrderId, OrderSide, OrderType, Price, Quantity, TimeInForce,
-};
+use crate::core::order::{Order, OrderId, OrderSide, OrderType, Price, Quantity, TimeInForce};
 
 #[derive(Archive, Deserialize, Serialize, Debug, PartialEq, Clone)]
 #[rkyv(
@@ -30,9 +28,6 @@ pub struct OrderSpec {
 
     // Time and execution conditions
     pub time_in_force: TimeInForce,
-
-    // Execution condition for the order
-    pub execution_condition: ExecutionCondition,
 }
 
 impl OrderSpec {
@@ -50,7 +45,6 @@ impl OrderSpec {
             quantity,
             order_type: OrderType::Limit,
             time_in_force: TimeInForce::GTC, // Default to GTC
-            execution_condition: ExecutionCondition::None, // Default to None
         }
     }
 
@@ -60,10 +54,9 @@ impl OrderSpec {
             id,
             order_side,
             price,
-            quantity: 0,                                   // NOT BEING USED
-            order_type: OrderType::Limit,                  // NOT BEING USED
-            time_in_force: TimeInForce::GTC,               // NOT BEING USED
-            execution_condition: ExecutionCondition::None, // NOT BEING USED
+            quantity: 0,                     // NOT BEING USED
+            order_type: OrderType::Limit,    // NOT BEING USED
+            time_in_force: TimeInForce::GTC, // NOT BEING USED
         }
     }
 
@@ -73,10 +66,9 @@ impl OrderSpec {
             id,
             order_side,
             price,
-            quantity: 0,                                   // NOT BEING USED
-            order_type: OrderType::Limit,                  // NOT BEING USED
-            time_in_force: TimeInForce::GTC,               // NOT BEING USED
-            execution_condition: ExecutionCondition::None, // NOT BEING USED
+            quantity: 0,                     // NOT BEING USED
+            order_type: OrderType::Limit,    // NOT BEING USED
+            time_in_force: TimeInForce::GTC, // NOT BEING USED
         }
     }
 
@@ -89,8 +81,26 @@ impl OrderSpec {
             price: 0,
             order_type: OrderType::Market,
             time_in_force: TimeInForce::GTC, // Default to GTC
-            execution_condition: ExecutionCondition::None, // Default to None
         }
+    }
+
+    // Copy TimeInForce
+    #[inline(always)]
+    pub fn with_time_in_force(mut self, time_in_force: TimeInForce) -> Self {
+        self.set_time_in_force(time_in_force);
+        return self;
+    }
+
+    #[inline(always)]
+    pub fn with_price(mut self, new_price: Price) -> Self {
+        self.set_price(new_price);
+        return self;
+    }
+
+    #[inline(always)]
+    pub fn with_quantity(mut self, new_quantity: Quantity) -> Self {
+        self.set_quantity(new_quantity);
+        return self;
     }
 }
 
@@ -146,13 +156,34 @@ impl Order for OrderSpec {
     }
 
     #[inline(always)]
-    fn execution_condition(&self) -> ExecutionCondition {
-        self.execution_condition
-    }
-
-    #[inline(always)]
     fn set_time_in_force(&mut self, time_in_force: TimeInForce) {
         self.time_in_force = time_in_force;
+    }
+
+    fn is_market(&self) -> bool {
+        self.order_type.is_market()
+    }
+
+    fn is_limit_price(&self) -> bool {
+        self.order_type.is_limit()
+    }
+
+    // Good Till Cancel
+    #[inline(always)]
+    fn good_till_cancel(&self) -> bool {
+        return self.time_in_force() == TimeInForce::GTC;
+    }
+
+    // is immediate or cancel
+    #[inline(always)]
+    fn is_immediate_or_cancel(&self) -> bool {
+        return self.time_in_force() == TimeInForce::IOC;
+    }
+
+    // is fill or kill
+    #[inline(always)]
+    fn is_fill_or_kill(&self) -> bool {
+        return self.time_in_force() == TimeInForce::FOK;
     }
 }
 
