@@ -668,6 +668,7 @@ dependencies = [
  "fake",
  "log",
  "rand 0.10.1",
+ "ringbuf",
  "rkyv",
  "rustc-hash",
  "slab",

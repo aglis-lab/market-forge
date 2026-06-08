@@ -1,12 +1,13 @@
 use async_ringbuf::traits::AsyncProducer;
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use market_forge::{core::order::OrderSpec, matching_pool};
+use ringbuf::traits::Producer;
 use std::time::Duration;
 
 mod simulate_order;
 
 // 1000 packets at once is best for high throughput
-const SIZES_THROUGHPUT: [usize; 2] = [10_000_000, 15_000_000];
+const SIZES_THROUGHPUT: [usize; 3] = [10_000_000, 15_000_000, 30_000_000];
 const SIZES_SYMBOLS: [usize; 6] = [1, 2, 4, 6, 8, 10];
 
 fn bench_perf_pool(c: &mut Criterion) {
@@ -56,12 +57,15 @@ async fn insert_orders(orders: &[OrderSpec], num_symbols: usize) {
     }
 
     pool.init(matching_pool::MatchingPoolConfig { symbols: symbols });
+    let mut err_count = 0;
     for order in orders.iter() {
-        pool.get_producer(order.symbol_id as usize)
+        if let Err(_) = pool
+            .get_producer(order.symbol_id as usize)
             .expect("Producer not found for symbol_id")
-            .push(order.clone())
-            .await
-            .expect("Failed to push the order")
+            .try_push(order.clone())
+        {
+            err_count += 1;
+        }
     }
 
     for index in 0..num_symbols {
@@ -69,6 +73,13 @@ async fn insert_orders(orders: &[OrderSpec], num_symbols: usize) {
     }
 
     pool.wait_all().await;
+
+    println!(
+        "Finished inserting {} orders with {} symbols, {} errors",
+        orders.len(),
+        num_symbols,
+        err_count
+    );
 }
 
 criterion_group!(benches, bench_perf_pool);
