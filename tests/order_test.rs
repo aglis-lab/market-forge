@@ -5,29 +5,31 @@ mod tests {
     use market_forge::{
         core::{
             error::OrderError,
+            order::OrderSpec,
             order::{OrderSide, TimeInForce},
             order_book::{self, OrderBook, Trade},
-            order_spec::OrderSpec,
         },
         utils::ReverseOrd,
     };
 
+    const SYMBOL: u32 = 1;
+
     #[test]
-    fn order_spec_test() {
+    fn order_test() {
         println!("OrderSpec size: {} bytes", mem::size_of::<OrderSpec>());
 
         let mut book = OrderBook::<OrderSpec>::with_capacity(100);
 
-        _ = book.insert_order(&OrderSpec::limit_price(1, OrderSide::Sell, 121, 12));
-        _ = book.insert_order(&OrderSpec::limit_price(2, OrderSide::Sell, 120, 8));
-        _ = book.insert_order(&OrderSpec::limit_price(3, OrderSide::Sell, 120, 2));
-        _ = book.insert_order(&OrderSpec::limit_price(4, OrderSide::Sell, 118, 5));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 1, OrderSide::Sell, 121, 12));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 2, OrderSide::Sell, 120, 8));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 3, OrderSide::Sell, 120, 2));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 4, OrderSide::Sell, 118, 5));
 
-        _ = book.insert_order(&OrderSpec::limit_price(5, OrderSide::Buy, 111, 2));
-        _ = book.insert_order(&OrderSpec::limit_price(6, OrderSide::Buy, 118, 15));
-        _ = book.insert_order(&OrderSpec::limit_price(7, OrderSide::Buy, 122, 10));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 5, OrderSide::Buy, 111, 2));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 6, OrderSide::Buy, 118, 15));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 7, OrderSide::Buy, 122, 10));
 
-        _ = book.insert_order(&OrderSpec::limit_price(8, OrderSide::Sell, 118, 15));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 8, OrderSide::Sell, 118, 15));
 
         println!("{}", book);
 
@@ -43,18 +45,19 @@ mod tests {
     }
 
     #[test]
-    fn order_spec_ioc_test() {
+    fn order_ioc_test() {
         let mut book = OrderBook::<OrderSpec>::with_capacity(100);
 
-        _ = book.insert_order(&OrderSpec::limit_price(1, OrderSide::Sell, 121, 12));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 1, OrderSide::Sell, 121, 12));
         println!("{}", book);
-        _ = book.insert_order(&OrderSpec::limit_price(2, OrderSide::Sell, 120, 8));
-        _ = book.insert_order(&OrderSpec::limit_price(3, OrderSide::Sell, 120, 2));
-        _ = book.insert_order(&OrderSpec::limit_price(4, OrderSide::Sell, 118, 5));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 2, OrderSide::Sell, 120, 8));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 3, OrderSide::Sell, 120, 2));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 4, OrderSide::Sell, 118, 5));
         println!("{}", book);
 
         _ = book.insert_order(
-            &OrderSpec::limit_price(5, OrderSide::Buy, 111, 2).with_time_in_force(TimeInForce::IOC),
+            &OrderSpec::limit_price(SYMBOL, 5, OrderSide::Buy, 111, 2)
+                .with_time_in_force(TimeInForce::IOC),
         );
         assert_eq!(
             book.bids().len(),
@@ -65,13 +68,13 @@ mod tests {
         println!("{}", book);
         // Matching with top asks
         _ = book.insert_order(
-            &OrderSpec::limit_price(6, OrderSide::Buy, 118, 15)
+            &OrderSpec::limit_price(SYMBOL, 6, OrderSide::Buy, 118, 15)
                 .with_time_in_force(TimeInForce::IOC),
         );
 
         // Not matching with top bids
         _ = book.insert_order(
-            &OrderSpec::limit_price(6, OrderSide::Sell, 111, 15)
+            &OrderSpec::limit_price(SYMBOL, 6, OrderSide::Sell, 111, 15)
                 .with_time_in_force(TimeInForce::IOC),
         );
 
@@ -106,16 +109,16 @@ mod tests {
     }
 
     #[test]
-    fn order_spec_fok_test() {
+    fn order_fok_test() {
         let mut book = OrderBook::<OrderSpec>::with_capacity(10);
 
-        _ = book.insert_order(&OrderSpec::limit_price(1, OrderSide::Sell, 119, 12));
-        _ = book.insert_order(&OrderSpec::limit_price(2, OrderSide::Sell, 120, 8));
-        _ = book.insert_order(&OrderSpec::limit_price(3, OrderSide::Sell, 120, 2));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 1, OrderSide::Sell, 119, 12));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 2, OrderSide::Sell, 120, 8));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 3, OrderSide::Sell, 120, 2));
 
         // Not match
         let res = book.insert_order(
-            &OrderSpec::limit_price(4, OrderSide::Buy, 120, 23)
+            &OrderSpec::limit_price(SYMBOL, 4, OrderSide::Buy, 120, 23)
                 .with_time_in_force(TimeInForce::FOK),
         );
         // Should match None
@@ -128,7 +131,7 @@ mod tests {
 
         // Match with price 119 and 12 quantity
         let res = book.insert_order(
-            &OrderSpec::limit_price(4, OrderSide::Buy, 120, 12)
+            &OrderSpec::limit_price(SYMBOL, 4, OrderSide::Buy, 120, 12)
                 .with_time_in_force(TimeInForce::FOK),
         );
         // Should match None
@@ -161,12 +164,12 @@ mod tests {
     fn order_market_test() {
         let mut book = OrderBook::<OrderSpec>::with_capacity(100);
 
-        _ = book.insert_order(&OrderSpec::limit_price(1, OrderSide::Sell, 121, 12));
-        _ = book.insert_order(&OrderSpec::limit_price(2, OrderSide::Sell, 120, 8));
-        _ = book.insert_order(&OrderSpec::limit_price(3, OrderSide::Sell, 120, 2));
-        _ = book.insert_order(&OrderSpec::limit_price(4, OrderSide::Sell, 118, 5));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 1, OrderSide::Sell, 121, 12));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 2, OrderSide::Sell, 120, 8));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 3, OrderSide::Sell, 120, 2));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 4, OrderSide::Sell, 118, 5));
 
-        let match_order = book.insert_order(&OrderSpec::market(5, OrderSide::Buy, 2));
+        let match_order = book.insert_order(&OrderSpec::market(SYMBOL, 5, OrderSide::Buy, 2));
         assert_eq!(match_order.len(), 1, "match order should not empty");
         assert_eq!(match_order[0].price, 118, "match order price should be 118");
         assert_eq!(
@@ -189,7 +192,7 @@ mod tests {
             "total quantity should be 25 after match"
         );
 
-        _ = book.insert_order(&OrderSpec::market(6, OrderSide::Buy, 15));
+        _ = book.insert_order(&OrderSpec::market(SYMBOL, 6, OrderSide::Buy, 15));
         assert_eq!(
             book.asks()
                 .get_price_level(&book.asks().peek_price().unwrap())
@@ -205,7 +208,7 @@ mod tests {
             "total quantity should be 10 after match"
         );
 
-        _ = book.insert_order(&OrderSpec::market(8, OrderSide::Buy, 15));
+        _ = book.insert_order(&OrderSpec::market(SYMBOL, 8, OrderSide::Buy, 15));
         assert_eq!(
             book.asks().total_quantity(),
             0,
@@ -213,7 +216,7 @@ mod tests {
         );
 
         {
-            let match_order = book.insert_order(&OrderSpec::market(7, OrderSide::Buy, 10));
+            let match_order = book.insert_order(&OrderSpec::market(SYMBOL, 7, OrderSide::Buy, 10));
             assert!(match_order.is_empty(), "no match order found");
         }
 
@@ -228,10 +231,10 @@ mod tests {
     fn order_cancel_test() {
         let mut book = OrderBook::<OrderSpec>::with_capacity(100);
 
-        _ = book.insert_order(&OrderSpec::limit_price(1, OrderSide::Sell, 121, 12));
-        _ = book.insert_order(&OrderSpec::limit_price(2, OrderSide::Sell, 120, 8));
-        _ = book.insert_order(&OrderSpec::limit_price(3, OrderSide::Sell, 120, 2));
-        _ = book.insert_order(&OrderSpec::limit_price(4, OrderSide::Sell, 118, 5));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 1, OrderSide::Sell, 121, 12));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 2, OrderSide::Sell, 120, 8));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 3, OrderSide::Sell, 120, 2));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 4, OrderSide::Sell, 118, 5));
 
         assert!(
             book.cancel_order(5).is_err(),
@@ -260,13 +263,13 @@ mod tests {
     fn order_replace_test() {
         let mut book = OrderBook::<OrderSpec>::with_capacity(100);
 
-        _ = book.insert_order(&OrderSpec::limit_price(1, OrderSide::Sell, 121, 12));
-        _ = book.insert_order(&OrderSpec::limit_price(2, OrderSide::Sell, 120, 8));
-        _ = book.insert_order(&OrderSpec::limit_price(3, OrderSide::Sell, 120, 2));
-        _ = book.insert_order(&OrderSpec::limit_price(4, OrderSide::Sell, 118, 5));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 1, OrderSide::Sell, 121, 12));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 2, OrderSide::Sell, 120, 8));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 3, OrderSide::Sell, 120, 2));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 4, OrderSide::Sell, 118, 5));
 
-        _ = book.insert_order(&OrderSpec::limit_price(5, OrderSide::Buy, 115, 2));
-        _ = book.insert_order(&OrderSpec::limit_price(6, OrderSide::Buy, 116, 15));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 5, OrderSide::Buy, 115, 2));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 6, OrderSide::Buy, 116, 15));
 
         // Replace Order Id 5 Quantity from 2 to 0
         let should_err = book.replace_order(order_book::ReplaceOrder {
@@ -292,13 +295,13 @@ mod tests {
     fn order_replace_success_test() {
         let mut book = OrderBook::<OrderSpec>::with_capacity(100);
 
-        _ = book.insert_order(&OrderSpec::limit_price(1, OrderSide::Sell, 121, 12));
-        _ = book.insert_order(&OrderSpec::limit_price(2, OrderSide::Sell, 120, 8));
-        _ = book.insert_order(&OrderSpec::limit_price(3, OrderSide::Sell, 120, 2));
-        _ = book.insert_order(&OrderSpec::limit_price(4, OrderSide::Sell, 118, 5));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 1, OrderSide::Sell, 121, 12));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 2, OrderSide::Sell, 120, 8));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 3, OrderSide::Sell, 120, 2));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 4, OrderSide::Sell, 118, 5));
 
-        _ = book.insert_order(&OrderSpec::limit_price(5, OrderSide::Buy, 115, 10));
-        _ = book.insert_order(&OrderSpec::limit_price(6, OrderSide::Buy, 116, 15));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 5, OrderSide::Buy, 115, 10));
+        _ = book.insert_order(&OrderSpec::limit_price(SYMBOL, 6, OrderSide::Buy, 116, 15));
 
         // Replace Order Id 5 Quantity from 10 to 8
         let _ = book.replace_order(order_book::ReplaceOrder {

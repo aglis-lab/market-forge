@@ -7,10 +7,12 @@ mod tests {
         rand::{SeedableRng, rngs::StdRng},
     };
     use market_forge::core::{
+        order::OrderSpec,
         order::{OrderId, OrderSide, Price, Quantity},
         order_book::OrderBook,
-        order_spec::OrderSpec,
     };
+
+    const SYMBOL: u32 = 1;
 
     #[test]
     fn latency_order_book_test() {
@@ -32,7 +34,7 @@ mod tests {
             } else {
                 OrderSide::Sell
             };
-            let order = OrderSpec::limit_price(i as OrderId, side, price, qty);
+            let order = OrderSpec::limit_price(SYMBOL, i as OrderId, side, price, qty);
 
             let now = Instant::now();
             book.insert_order(&order);
