@@ -11,6 +11,7 @@ fake = {version="4.3.0", features=["derive"]}
 log = {version="0.4.30", features=["release_max_level_info"]}
 rand = "0.10.1"
 rkyv = "0.8.16"
+rtrb = "0.3.4"
 rustc-hash = "2.1.2"
 slab = "0.4.9"
 smallvec = "1.15.1"

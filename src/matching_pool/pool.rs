@@ -1,13 +1,13 @@
 use crate::{
-    core::order,
+    core::{order, order_book},
     matching_pool::{MatchingPoolConfig, Symbol},
 };
 use async_ringbuf::traits::AsyncConsumer;
 use async_ringbuf::{AsyncHeapRb, traits::Split, wrap::AsyncWrap};
 use std::sync::Arc;
 
-const BUFFER_CAPACITY: usize = 1024 * 1024; // 1MB proven safe with high throughput
-const INITIAL_POOL_SIZE: usize = 1024;
+const BUFFER_CAPACITY: usize = 1024 * 1024 * 16; // 16MB proven safe with high throughput
+const INITIAL_POOL_SIZE: usize = 512; // Start with capacity for 512 symbols, can grow dynamically
 
 type ConsumerBuffer<T> = AsyncWrap<Arc<AsyncHeapRb<T>>, false, true>;
 type ProducerBuffer<T> = AsyncWrap<Arc<AsyncHeapRb<T>>, true, false>;
@@ -16,7 +16,7 @@ pub struct MatchingPool<T>
 where
     T: order::Order + Send + Sync + 'static,
 {
-    producers: std::vec::Vec<Option<ProducerBuffer<T>>>,
+    producers: std::vec::Vec<Option<rtrb::Producer<T>>>,
     handles: tokio::task::JoinSet<()>,
 }
 
@@ -39,7 +39,7 @@ where
         }
     }
 
-    pub fn get_producer(&mut self, slot_idx: usize) -> Option<&mut ProducerBuffer<T>> {
+    pub fn get_producer(&mut self, slot_idx: usize) -> Option<&mut rtrb::Producer<T>> {
         if slot_idx >= self.producers.len() {
             log::warn!(
                 "Attempted to get producer for non-existent symbol with slot_idx: {}",
@@ -82,7 +82,7 @@ where
     }
 
     fn create_ring_buffer(&mut self, symbol: &Symbol) {
-        let (producer, consumer) = async_ringbuf::AsyncHeapRb::<T>::new(BUFFER_CAPACITY).split();
+        let (producer, consumer) = rtrb::RingBuffer::<T>::new(BUFFER_CAPACITY);
 
         // Spin up consumer task for this symbol
         log::info!("Spinning consumer for symbol: {:?}", symbol);
@@ -94,21 +94,28 @@ where
         self.store_producer(symbol.slot_idx, producer);
     }
 
-    fn spawn_consumer(&mut self, mut consumer: ConsumerBuffer<T>) {
+    fn spawn_consumer(&mut self, mut consumer: rtrb::Consumer<T>) {
         self.handles.spawn(async move {
+            let mut book = order_book::OrderBook::<T>::default();
+
             loop {
-                let _ = match consumer.pop().await {
-                    Some(packet) => packet,
-                    None => {
-                        log::info!("Consumer detected closed buffer, exiting");
-                        return;
+                let _ = match consumer.pop() {
+                    Ok(order) => book.insert_order(&order),
+                    Err(_) => {
+                        if consumer.is_abandoned() {
+                            log::info!("Consumer detected abandoned buffer, exiting");
+                            break;
+                        }
+
+                        tokio::task::yield_now().await;
+                        continue;
                     }
                 };
             }
         });
     }
 
-    fn store_producer(&mut self, slot_idx: usize, producer: ProducerBuffer<T>) {
+    fn store_producer(&mut self, slot_idx: usize, producer: rtrb::Producer<T>) {
         if slot_idx >= self.producers.len() {
             self.producers.resize_with(slot_idx + 1, || None);
         }
@@ -141,6 +148,12 @@ mod tests {
             "Option<ConsumerBuffer<PacketOrders<OrderSpec>>>> size: {} bytes",
             size
         );
+
+        let size = size_of::<Option<rtrb::Producer<OrderSpec>>>();
+        println!("Option<rtrb::Producer<OrderSpec>>> size: {} bytes", size);
+
+        let size = size_of::<Option<rtrb::Consumer<OrderSpec>>>();
+        println!("Option<rtrb::Consumer<OrderSpec>>> size: {} bytes", size);
 
         let size = size_of::<JoinHandle<()>>();
         println!("JoinHandle<()> size: {} bytes", size);

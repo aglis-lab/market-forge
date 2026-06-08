@@ -1,4 +1,4 @@
-use async_ringbuf::traits::AsyncProducer;
+use async_ringbuf::traits::{AsyncProducer, Producer};
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use market_forge::{core::order::OrderSpec, matching_pool};
 use std::time::Duration;
@@ -6,8 +6,8 @@ use std::time::Duration;
 mod simulate_order;
 
 // 1000 packets at once is best for high throughput
-const SIZES_THROUGHPUT: [usize; 2] = [10_000_000, 15_000_000];
-const SIZES_SYMBOLS: [usize; 6] = [1, 2, 4, 6, 8, 10];
+const SIZES_THROUGHPUT: [usize; 3] = [10_000_000, 15_000_000, 30_000_000];
+const SIZES_SYMBOLS: [usize; 4] = [2, 5, 8, 10];
 
 fn bench_perf_pool(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
@@ -15,7 +15,7 @@ fn bench_perf_pool(c: &mut Criterion) {
     let mut group = c.benchmark_group("perf_pool_push");
     group.measurement_time(Duration::from_secs(5));
     group.warm_up_time(Duration::from_secs(1));
-    group.sample_size(20);
+    group.sample_size(10);
 
     for &num_symbols in &SIZES_SYMBOLS {
         for &num in &SIZES_THROUGHPUT {
@@ -60,8 +60,7 @@ async fn insert_orders(orders: &[OrderSpec], num_symbols: usize) {
         pool.get_producer(order.symbol_id as usize)
             .expect("Producer not found for symbol_id")
             .push(order.clone())
-            .await
-            .expect("Failed to push the order")
+            .expect("Failed to push the order");
     }
 
     for index in 0..num_symbols {

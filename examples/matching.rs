@@ -34,7 +34,6 @@ async fn main() {
                     150,
                     10,
                 ))
-                .await
                 .unwrap();
         }
         None => {
@@ -53,7 +52,6 @@ async fn main() {
                         155,
                         10,
                     ))
-                    .await
                     .unwrap();
             }
         }
@@ -62,8 +60,8 @@ async fn main() {
         }
     };
 
-    pool.cancel(0);
-    pool.cancel(1);
+    // pool.cancel(0);
+    // pool.cancel(1);
 
     // Wait for the cancellation task to complete before exiting
     pool.wait_all().await;
