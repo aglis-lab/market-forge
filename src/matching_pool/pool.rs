@@ -2,12 +2,10 @@ use crate::{
     core::{order, order_book},
     matching_pool::{MatchingPoolConfig, Symbol},
 };
-use async_ringbuf::traits::AsyncConsumer;
-use async_ringbuf::{AsyncHeapRb, traits::Split, wrap::AsyncWrap};
 use ringbuf::{
     HeapRb, SharedRb,
     storage::Heap,
-    traits::{Consumer, Observer},
+    traits::{Consumer, Observer, Split},
     wrap::caching::Caching,
 };
 use std::sync::Arc;
@@ -100,24 +98,30 @@ where
         self.store_producer(symbol.slot_idx, producer);
     }
 
-    fn spawn_consumer(&mut self, mut consumer: ConsumerBuffer<T>) {
+    fn spawn_consumer(&mut self, consumer: ConsumerBuffer<T>) {
         self.handles.spawn(async move {
-            // let mut book = order_book::OrderBook::<T>::default();
+            let mut book = order_book::OrderBook::<T>::default();
 
             loop {
-                let _ = match consumer.try_pop() {
-                    Some(order) => {
-                        // book.insert_order(&order)
+                let slices = consumer.occupied_slices();
+                let count = slices.0.len() + slices.1.len();
+                if count == 0 {
+                    if !consumer.write_is_held() {
+                        log::info!("Consumer detected closed buffer, exiting");
+                        break;
                     }
-                    None => {
-                        if !consumer.write_is_held() {
-                            log::info!("Consumer detected closed buffer, exiting");
-                            break;
-                        }
 
-                        tokio::task::yield_now().await;
-                        continue;
-                    }
+                    tokio::task::yield_now().await;
+                    continue;
+                }
+
+                for slot in slices.0.iter().chain(slices.1.iter()) {
+                    let order = unsafe { slot.assume_init_ref() };
+                    book.insert_order(order);
+                }
+
+                unsafe {
+                    consumer.advance_read_index(count);
                 };
             }
         });

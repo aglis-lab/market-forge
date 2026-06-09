@@ -7,8 +7,8 @@ use std::time::Duration;
 mod simulate_order;
 
 // 1000 packets at once is best for high throughput
-const SIZES_THROUGHPUT: [usize; 3] = [10_000_000, 15_000_000, 30_000_000];
-const SIZES_SYMBOLS: [usize; 6] = [1, 2, 4, 6, 8, 10];
+const SIZES_THROUGHPUT: [usize; 3] = [10_000_000, 15_000_000, 20_000_000];
+const SIZES_SYMBOLS: [usize; 6] = [4, 6, 8, 10, 16, 32];
 
 fn bench_perf_pool(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
@@ -73,14 +73,16 @@ async fn insert_orders(orders: &[OrderSpec], num_symbols: usize) {
     }
 
     pool.wait_all().await;
-
-    println!(
-        "Finished inserting {} orders with {} symbols, {} errors",
-        orders.len(),
-        num_symbols,
-        err_count
-    );
+    if err_count > 0 {
+        println!(
+            "Finished inserting {} orders with {} symbols, {} errors",
+            orders.len(),
+            num_symbols,
+            err_count
+        );
+    }
 }
 
 criterion_group!(benches, bench_perf_pool);
+
 criterion_main!(benches);
