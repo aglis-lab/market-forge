@@ -1,7 +1,5 @@
-use async_ringbuf::traits::AsyncProducer;
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use market_forge::{core::order::OrderSpec, matching_pool};
-use ringbuf::traits::Producer;
 use std::time::Duration;
 
 mod simulate_order;
@@ -59,11 +57,7 @@ async fn insert_orders(orders: &[OrderSpec], num_symbols: usize) {
     pool.init(matching_pool::MatchingPoolConfig { symbols: symbols });
     let mut err_count = 0;
     for order in orders.iter() {
-        if let Err(_) = pool
-            .get_producer(order.symbol_id as usize)
-            .expect("Producer not found for symbol_id")
-            .try_push(order.clone())
-        {
+        if let Err(_) = pool.try_push(order.symbol_id as usize, order.clone()) {
             err_count += 1;
         }
     }

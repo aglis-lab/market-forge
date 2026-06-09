@@ -2,19 +2,22 @@ use crate::{
     core::{order, order_book},
     matching_pool::{MatchingPoolConfig, Symbol},
 };
+use async_ringbuf::{
+    AsyncHeapRb, AsyncRb,
+    traits::{AsyncConsumer, AsyncProducer},
+    wrap::AsyncWrap,
+};
 use ringbuf::{
-    HeapRb, SharedRb,
     storage::Heap,
-    traits::{Consumer, Observer, Split},
-    wrap::caching::Caching,
+    traits::{Consumer, Producer, Split},
 };
 use std::sync::Arc;
 
-const BUFFER_CAPACITY: usize = 1024 * 1024 * 16; // 16MB proven safe with high throughput
+const BUFFER_CAPACITY: usize = 1024 * 1024 * 4; // 16MB proven safe with high throughput
 const INITIAL_POOL_SIZE: usize = 512;
 
-type ConsumerBuffer<T> = Caching<Arc<SharedRb<Heap<T>>>, false, true>;
-type ProducerBuffer<T> = Caching<Arc<SharedRb<Heap<T>>>, true, false>;
+type ConsumerBuffer<T> = AsyncWrap<Arc<AsyncRb<Heap<T>>>, false, true>;
+type ProducerBuffer<T> = AsyncWrap<Arc<AsyncRb<Heap<T>>>, true, false>;
 
 pub struct MatchingPool<T>
 where
@@ -43,7 +46,36 @@ where
         }
     }
 
-    pub fn get_producer(&mut self, slot_idx: usize) -> Option<&mut ProducerBuffer<T>> {
+    // TODO: I have an idea to push failed orders to a fallback buffer for later processing, but let's start with this for now
+    // The logic is we push failed order into a vector
+    // and then wake up a background task to process the failed orders in batches, which can be more efficient than processing them one by one
+    // all orders with same symbol_id can be processed in the same batch, which can further improve efficiency
+    pub fn try_push(&mut self, slot_idx: usize, order: T) -> anyhow::Result<()> {
+        if let Some(producer) = self.get_producer(slot_idx) {
+            return producer
+                .try_push(order)
+                .map_err(|e| anyhow::anyhow!("Failed to push order: {:?}", e));
+        } else {
+            Err(anyhow::anyhow!(
+                "Attempted to push to non-existent symbol with slot_idx: {}",
+                slot_idx
+            ))
+        }
+    }
+
+    pub async fn push(&mut self, slot_idx: usize, order: T) -> anyhow::Result<()> {
+        if let Some(producer) = self.get_producer(slot_idx) {
+            let result = producer.push(order).await;
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!(
+                "Attempted to push to non-existent symbol with slot_idx: {}",
+                slot_idx
+            ))
+        }
+    }
+
+    fn get_producer(&mut self, slot_idx: usize) -> Option<&mut ProducerBuffer<T>> {
         if slot_idx >= self.producers.len() {
             log::warn!(
                 "Attempted to get producer for non-existent symbol with slot_idx: {}",
@@ -86,7 +118,7 @@ where
     }
 
     fn create_ring_buffer(&mut self, symbol: &Symbol) {
-        let (producer, consumer) = HeapRb::<T>::new(BUFFER_CAPACITY).split();
+        let (producer, consumer) = AsyncHeapRb::<T>::new(BUFFER_CAPACITY).split();
 
         // Spin up consumer task for this symbol
         log::info!("Spinning consumer for symbol: {:?}", symbol);
@@ -98,31 +130,37 @@ where
         self.store_producer(symbol.slot_idx, producer);
     }
 
-    fn spawn_consumer(&mut self, consumer: ConsumerBuffer<T>) {
+    fn spawn_consumer(&mut self, mut consumer: ConsumerBuffer<T>) {
         self.handles.spawn(async move {
             let mut book = order_book::OrderBook::<T>::default();
 
             loop {
-                let slices = consumer.occupied_slices();
-                let count = slices.0.len() + slices.1.len();
-                if count == 0 {
-                    if !consumer.write_is_held() {
-                        log::info!("Consumer detected closed buffer, exiting");
+                // Wake up when there's an order to process
+                match consumer.pop().await {
+                    Some(order) => book.insert_order(&order),
+                    None => {
+                        log::info!("Consumer received None, exiting consumer task");
+                        break;
+                    }
+                };
+
+                // Process all available orders in the buffer
+                loop {
+                    let slices = consumer.occupied_slices();
+                    let count = slices.0.len() + slices.1.len();
+                    if count == 0 {
                         break;
                     }
 
-                    tokio::task::yield_now().await;
-                    continue;
-                }
+                    for slot in slices.0.iter().chain(slices.1.iter()) {
+                        let order = unsafe { slot.assume_init_ref() };
+                        book.insert_order(order);
+                    }
 
-                for slot in slices.0.iter().chain(slices.1.iter()) {
-                    let order = unsafe { slot.assume_init_ref() };
-                    book.insert_order(order);
+                    unsafe {
+                        consumer.advance_read_index(count);
+                    };
                 }
-
-                unsafe {
-                    consumer.advance_read_index(count);
-                };
             }
         });
     }

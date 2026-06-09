@@ -1,6 +1,4 @@
-use async_ringbuf::traits::AsyncProducer;
 use market_forge::{core::order, matching_pool};
-use ringbuf::traits::Producer;
 
 // Init struct
 #[tokio::main]
@@ -25,44 +23,36 @@ async fn main() {
 
     pool.init(config);
 
-    match pool.get_producer(0) {
-        Some(producer) => {
-            producer
-                .try_push(order::OrderSpec::limit_price(
-                    0, // symbol_id for AAPL
-                    1001,
-                    order::OrderSide::Buy,
-                    150,
-                    10,
-                ))
-                .unwrap();
-        }
-        None => {
-            log::warn!("Producer for slot_idx 0 not found");
-        }
-    };
+    pool.push(
+        0,
+        order::OrderSpec::limit_price(
+            0, // symbol_id for AAPL
+            1001,
+            order::OrderSide::Buy,
+            150,
+            10,
+        ),
+    )
+    .await
+    .unwrap();
 
-    match pool.get_producer(1) {
-        Some(producer) => {
-            for _ in 0..100 {
-                producer
-                    .try_push(order::OrderSpec::limit_price(
-                        1, // symbol_id for GOOG
-                        1002,
-                        order::OrderSide::Buy,
-                        155,
-                        10,
-                    ))
-                    .unwrap();
-            }
-        }
-        None => {
-            log::warn!("Producer for slot_idx 1 not found");
-        }
-    };
+    for _ in 0..100 {
+        pool.push(
+            1,
+            order::OrderSpec::limit_price(
+                1, // symbol_id for GOOG
+                1002,
+                order::OrderSide::Buy,
+                155,
+                10,
+            ),
+        )
+        .await
+        .unwrap();
+    }
 
-    // pool.cancel(0);
-    // pool.cancel(1);
+    pool.cancel(0);
+    pool.cancel(1);
 
     // Wait for the cancellation task to complete before exiting
     pool.wait_all().await;
