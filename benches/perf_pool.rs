@@ -7,7 +7,7 @@ mod simulate_order;
 
 // 1000 packets at once is best for high throughput
 const SIZES_THROUGHPUT: [usize; 3] = [10_000_000, 15_000_000, 30_000_000];
-const SIZES_SYMBOLS: [usize; 4] = [2, 5, 8, 10];
+const SIZES_SYMBOLS: [usize; 5] = [1, 2, 5, 8, 10];
 
 fn bench_perf_pool(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
@@ -56,11 +56,15 @@ async fn insert_orders(orders: &[OrderSpec], num_symbols: usize) {
     }
 
     pool.init(matching_pool::MatchingPoolConfig { symbols: symbols });
+    let mut err_count = 0;
     for order in orders.iter() {
-        pool.get_producer(order.symbol_id as usize)
+        if let Err(_) = pool
+            .get_producer(order.symbol_id as usize)
             .expect("Producer not found for symbol_id")
             .push(order.clone())
-            .expect("Failed to push the order");
+        {
+            err_count += 1;
+        }
     }
 
     for index in 0..num_symbols {
@@ -68,6 +72,15 @@ async fn insert_orders(orders: &[OrderSpec], num_symbols: usize) {
     }
 
     pool.wait_all().await;
+
+    if err_count > 0 {
+        println!(
+            "Inserted {} orders at num_symbols {} with {} errors",
+            orders.len(),
+            num_symbols,
+            err_count
+        );
+    }
 }
 
 criterion_group!(benches, bench_perf_pool);

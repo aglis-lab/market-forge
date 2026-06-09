@@ -2,15 +2,10 @@ use crate::{
     core::{order, order_book},
     matching_pool::{MatchingPoolConfig, Symbol},
 };
-use async_ringbuf::traits::AsyncConsumer;
-use async_ringbuf::{AsyncHeapRb, traits::Split, wrap::AsyncWrap};
-use std::sync::Arc;
+use rtrb::chunks::ChunkError::TooFewSlots;
 
 const BUFFER_CAPACITY: usize = 1024 * 1024 * 16; // 16MB proven safe with high throughput
 const INITIAL_POOL_SIZE: usize = 512; // Start with capacity for 512 symbols, can grow dynamically
-
-type ConsumerBuffer<T> = AsyncWrap<Arc<AsyncHeapRb<T>>, false, true>;
-type ProducerBuffer<T> = AsyncWrap<Arc<AsyncHeapRb<T>>, true, false>;
 
 pub struct MatchingPool<T>
 where
@@ -99,8 +94,19 @@ where
             let mut book = order_book::OrderBook::<T>::default();
 
             loop {
-                let _ = match consumer.pop() {
-                    Ok(order) => book.insert_order(&order),
+                let mut chunk = consumer.read_chunk(100);
+                if let Err(TooFewSlots(slots)) = chunk {
+                    if slots > 0 {
+                        chunk = consumer.read_chunk(slots);
+                    }
+                }
+
+                match chunk {
+                    Ok(items) => {
+                        for order in items {
+                            book.insert_order(&order);
+                        }
+                    }
                     Err(_) => {
                         if consumer.is_abandoned() {
                             log::info!("Consumer detected abandoned buffer, exiting");
@@ -110,7 +116,7 @@ where
                         tokio::task::yield_now().await;
                         continue;
                     }
-                };
+                }
             }
         });
     }
@@ -130,24 +136,11 @@ mod tests {
 
     use crate::core::order::OrderSpec;
 
-    use super::*;
     use std::{mem::size_of, num};
 
     #[test]
     fn show_order_node_size() {
         num::NonZeroUsize::new(1).unwrap();
-
-        let size = size_of::<Option<ProducerBuffer<OrderSpec>>>();
-        println!(
-            "Option<ProducerBuffer<PacketOrders<OrderSpec>>>> size: {} bytes",
-            size
-        );
-
-        let size = size_of::<Option<ConsumerBuffer<OrderSpec>>>();
-        println!(
-            "Option<ConsumerBuffer<PacketOrders<OrderSpec>>>> size: {} bytes",
-            size
-        );
 
         let size = size_of::<Option<rtrb::Producer<OrderSpec>>>();
         println!("Option<rtrb::Producer<OrderSpec>>> size: {} bytes", size);
