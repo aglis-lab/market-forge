@@ -5,44 +5,20 @@ use fake::{
 };
 use market_forge::core::{
     order::Order,
+    order::{self, OrderSpec},
     order_book::{self, OrderBook},
-    order_spec::{self, OrderSpec},
 };
 use std::time::{Duration, Instant};
 
 mod simulate_order;
 
-const SIZES_PERF_CANCEL: [usize; 5] = [
-    5_000_000usize,
-    10_000_000usize,
-    15_000_000usize,
-    22_000_000usize,
-    30_000_000usize,
-];
+const SIZES_PERF_CANCEL: [usize; 5] = [5_000_000, 10_000_000, 15_000_000, 22_000_000, 30_000_000];
 
-const SIZES_PERF_REPLACE: [usize; 5] = [
-    5_000_000usize,
-    10_000_000usize,
-    15_000_000usize,
-    22_000_000usize,
-    30_000_000usize,
-];
+const SIZES_PERF_REPLACE: [usize; 5] = [5_000_000, 10_000_000, 15_000_000, 22_000_000, 30_000_000];
 
-const SIZES_PERF_MATCHING: [usize; 5] = [
-    5_000_000usize,
-    10_000_000usize,
-    15_000_000usize,
-    22_000_000usize,
-    30_000_000usize,
-];
+const SIZES_PERF_MATCHING: [usize; 5] = [5_000_000, 10_000_000, 15_000_000, 22_000_000, 30_000_000];
 
-const SIZES_PERF_COMBINED: [usize; 5] = [
-    5_000_000usize,
-    10_000_000usize,
-    15_000_000usize,
-    22_000_000usize,
-    30_000_000usize,
-];
+const SIZES_PERF_COMBINED: [usize; 5] = [5_000_000, 10_000_000, 15_000_000, 22_000_000, 30_000_000];
 
 fn bench_perf_matching(c: &mut Criterion) {
     let mut group = c.benchmark_group("perf_order_matching");
@@ -51,7 +27,7 @@ fn bench_perf_matching(c: &mut Criterion) {
     group.sample_size(20);
 
     for &num in &SIZES_PERF_MATCHING {
-        let orders = simulate_order::make_realistic_orders(num, num as u64);
+        let orders = simulate_order::make_realistic_orders(num, 10, num as u64);
         group.throughput(Throughput::Elements(num as u64));
 
         group.bench_with_input(BenchmarkId::from_parameter(num), &num, |b, &_num| {
@@ -75,8 +51,8 @@ fn bench_perf_cancel(c: &mut Criterion) {
     group.sample_size(20);
 
     for &num in &SIZES_PERF_CANCEL {
-        let mut book = OrderBook::<order_spec::OrderSpec>::default();
-        let orders = simulate_order::make_realistic_orders(num, num as u64 + 1);
+        let mut book = OrderBook::<order::OrderSpec>::default();
+        let orders = simulate_order::make_realistic_orders(num, 10, num as u64 + 1);
 
         // Count both insert and cancel operations
         group.throughput(Throughput::Elements(num as u64));
@@ -102,7 +78,7 @@ fn bench_perf_replace(c: &mut Criterion) {
     group.sample_size(20);
 
     for &num in &SIZES_PERF_REPLACE {
-        let orders = simulate_order::make_realistic_orders(num, num as u64 + 2);
+        let orders = simulate_order::make_realistic_orders(num, 10, num as u64 + 2);
         // Count both insert and replace operations
         group.throughput(Throughput::Elements((num as u64) * 2));
 
@@ -134,7 +110,7 @@ fn bench_perf_combine(c: &mut Criterion) {
     let can_f = (cancel_pct as f64) / 100.0;
 
     for &num in &SIZES_PERF_COMBINED {
-        let orders = simulate_order::make_realistic_orders(num, num as u64 + 3);
+        let orders = simulate_order::make_realistic_orders(num, 10, num as u64 + 3);
         let expected_ops = ((num as f64) * (1.0 + rep_f + can_f)).round() as u64;
         group.throughput(Throughput::Elements(expected_ops));
 

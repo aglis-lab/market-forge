@@ -23,12 +23,12 @@ You can implement your own Order trait but the default should be already suffici
 
 **Memory Layout & Performance:**
 
-- `OrderSpec` is **32 bytes** in size, with approximately **5-7 bytes currently reserved for future use** (padding).
+- `OrderSpec` is **32 bytes** in size.
 - Each order transaction consumes roughly **40-56 bytes** in memory (including allocator overhead).
 - Benchmark results: **10-14M transactions/sec** on combined workloads, demonstrating highly efficient memory utilization and cache locality.
 
 ```rust
-use market_forge::{order::OrderSide, order_book::OrderBook, order_spec::OrderSpec};
+use market_forge::{order::OrderSide, order_book::OrderBook, order::OrderSpec};
 
 // Default give pre-allocated memory
 let mut book = OrderBook::<OrderSpec>::default();
@@ -38,7 +38,7 @@ let result = book.insert_order(&order);
 ```
 
 ```rust
-use market_forge::{order::OrderSide, order_book::OrderBook, order_spec::OrderSpec};
+use market_forge::{order::OrderSide, order_book::OrderBook, order::OrderSpec};
 
 let mut book = OrderBook::<OrderSpec>::default();
 

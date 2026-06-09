@@ -96,15 +96,3 @@ pub enum OrderType {
     Market, // Market order — match now, no price
     Limit,  // Limit order — match at limit price or better
 }
-
-impl OrderType {
-    #[inline(always)]
-    pub fn is_market(&self) -> bool {
-        *self == OrderType::Market
-    }
-
-    #[inline(always)]
-    pub fn is_limit(&self) -> bool {
-        *self == OrderType::Limit
-    }
-}

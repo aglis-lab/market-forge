@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.102"
+async-ringbuf = "0.3.6"
 env_logger = "0.11.10"
 fake = {version="4.3.0", features=["derive"]}
 log = {version="0.4.30", features=["release_max_level_info"]}
@@ -24,15 +25,30 @@ lto = true
 strip = true
 
 [profile.bench]
-inherits = "release"
-# debug = 1
-# lto = false
-# strip = false
+# inherits = "release"
+debug = 1
+lto = false
+strip = false
 
 [dev-dependencies]
-criterion = { version = "0.8", features = ["html_reports"] }
+criterion = { version = "0.8", features = ["html_reports", "async_tokio"] }
 
 [[bench]]
 name = "perf_order"
 path = "benches/perf_order.rs"
+harness = false
+
+[[bench]]
+name = "perf_rkyv"
+path = "benches/perf_rkyv.rs"
+harness = false
+
+[[bench]]
+name = "perf_socket"
+path = "benches/perf_socket.rs"
+harness = false
+
+[[bench]]
+name = "perf_pool"
+path = "benches/perf_pool.rs"
 harness = false
