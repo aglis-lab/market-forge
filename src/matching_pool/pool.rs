@@ -3,21 +3,17 @@ use crate::{
     matching_pool::{MatchingPoolConfig, Symbol},
 };
 use async_ringbuf::{
-    AsyncHeapRb, AsyncRb,
-    traits::{AsyncConsumer, AsyncProducer},
+    AsyncHeapRb,
+    traits::{AsyncConsumer, AsyncProducer, Consumer, Producer, Split},
     wrap::AsyncWrap,
-};
-use ringbuf::{
-    storage::Heap,
-    traits::{Consumer, Producer, Split},
 };
 use std::sync::Arc;
 
 const BUFFER_CAPACITY: usize = 1024 * 1024 * 4; // 16MB proven safe with high throughput
 const INITIAL_POOL_SIZE: usize = 512;
 
-type ConsumerBuffer<T> = AsyncWrap<Arc<AsyncRb<Heap<T>>>, false, true>;
-type ProducerBuffer<T> = AsyncWrap<Arc<AsyncRb<Heap<T>>>, true, false>;
+type ConsumerBuffer<T> = AsyncWrap<Arc<AsyncHeapRb<T>>, false, true>;
+type ProducerBuffer<T> = AsyncWrap<Arc<AsyncHeapRb<T>>, true, false>;
 
 pub struct MatchingPool<T>
 where
@@ -65,8 +61,10 @@ where
 
     pub async fn push(&mut self, slot_idx: usize, order: T) -> anyhow::Result<()> {
         if let Some(producer) = self.get_producer(slot_idx) {
-            let result = producer.push(order).await;
-            Ok(())
+            producer
+                .push(order)
+                .await
+                .map_err(|e| anyhow::anyhow!("failed to push order: {:?}", e))
         } else {
             Err(anyhow::anyhow!(
                 "Attempted to push to non-existent symbol with slot_idx: {}",

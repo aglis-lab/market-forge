@@ -6,12 +6,10 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0.102"
 async-ringbuf = "0.3.6"
-atomic-waker = "1.1.2"
 env_logger = "0.11.10"
 fake = {version="4.3.0", features=["derive"]}
 log = {version="0.4.30", features=["release_max_level_info"]}
 rand = "0.10.1"
-ringbuf = "0.5.0"
 rkyv = "0.8.16"
 rustc-hash = "2.1.2"
 slab = "0.4.9"
