@@ -10,43 +10,55 @@ use market_forge::core::{
 };
 use std::time::{Duration, Instant};
 
-const SIZES_PERF_CANCEL: [usize; 5] = [
-    100_000usize,
-    250_000usize,
-    500_000usize,
-    700_000usize,
-    1_000_000usize,
-];
+const SAMPLE_SIZE: usize = 10;
 
-const SIZES_PERF_REPLACE: [usize; 5] = [
+const SIZES_PERF_CANCEL: [usize; 6] = [
     100_000usize,
     250_000usize,
     400_000usize,
     600_000usize,
     700_000usize,
-];
-
-const SIZES_PERF_INSERT: [usize; 5] = [
-    10_000_000usize,
-    15_000_000usize,
-    30_000_000usize,
-    50_000_000usize,
-    80_000_000usize,
-];
-
-const SIZES_PERF_COMBINED: [usize; 5] = [
-    250_000usize,
-    500_000usize,
-    750_000usize,
     1_000_000usize,
-    1_500_000usize,
+];
+
+const SIZES_PERF_REPLACE: [usize; 6] = [
+    100_000usize,
+    250_000usize,
+    400_000usize,
+    600_000usize,
+    700_000usize,
+    1_000_000usize,
+];
+
+const SIZES_PERF_INSERT: [usize; 12] = [
+    100_000usize,
+    250_000usize,
+    400_000usize,
+    600_000usize,
+    700_000usize,
+    1_000_000usize,
+    5_000_000usize,
+    10_000_000usize,
+    20_000_000usize,
+    30_000_000usize,
+    40_000_000usize,
+    50_000_000usize,
+];
+
+const SIZES_PERF_COMBINED: [usize; 6] = [
+    100_000usize,
+    250_000usize,
+    400_000usize,
+    600_000usize,
+    700_000usize,
+    1_000_000usize,
 ];
 
 fn bench_perf_insert(c: &mut Criterion) {
     let mut group = c.benchmark_group("perf_order_insert");
     group.measurement_time(Duration::from_secs(5));
     group.warm_up_time(Duration::from_secs(1));
-    group.sample_size(20);
+    group.sample_size(SAMPLE_SIZE);
 
     for &num in &SIZES_PERF_INSERT {
         let orders = make_orders(num, num as u64);
@@ -70,7 +82,7 @@ fn bench_perf_cancel(c: &mut Criterion) {
     let mut group = c.benchmark_group("perf_order_cancel");
     group.measurement_time(Duration::from_secs(5));
     group.warm_up_time(Duration::from_secs(1));
-    group.sample_size(20);
+    group.sample_size(SAMPLE_SIZE);
 
     for &num in &SIZES_PERF_CANCEL {
         let orders = make_orders(num, num as u64 + 1);
@@ -95,7 +107,7 @@ fn bench_perf_replace(c: &mut Criterion) {
     let mut group = c.benchmark_group("perf_order_replace");
     group.measurement_time(Duration::from_secs(5));
     group.warm_up_time(Duration::from_secs(1));
-    group.sample_size(20);
+    group.sample_size(SAMPLE_SIZE);
 
     for &num in &SIZES_PERF_REPLACE {
         let orders = make_orders(num, num as u64 + 2);
@@ -120,7 +132,7 @@ fn bench_perf_combine(c: &mut Criterion) {
     let mut group = c.benchmark_group("perf_order_combined");
     group.measurement_time(Duration::from_secs(5));
     group.warm_up_time(Duration::from_secs(1));
-    group.sample_size(20);
+    group.sample_size(SAMPLE_SIZE);
 
     // Chosen ratio: inserts always, replacements ~20%, cancels ~10%.
     // This models a heavy-insert workload with occasional modifications/cancels.
@@ -234,7 +246,6 @@ fn insert_replace_cancel_once(
 
     for order in orders {
         let _ = book.insert_order(order);
-
         let r = rng.random_range(0..100u64) as u32;
         if r < replace_pct {
             let new_price = order.price + 10;
