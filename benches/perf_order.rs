@@ -10,37 +10,53 @@ use market_forge::core::{
 };
 use std::time::{Duration, Instant};
 
+use stats_alloc::{INSTRUMENTED_SYSTEM, Region, StatsAlloc};
+use std::alloc::System;
+
 mod simulate_order;
 
-const SIZES_PERF_CANCEL: [usize; 5] = [
+#[global_allocator]
+static GLOBAL: &StatsAlloc<System> = &INSTRUMENTED_SYSTEM;
+
+const SAMPLE_SIZE: usize = 10;
+
+const SIZES_PERF_CANCEL: [usize; 7] = [
+    1_000_000usize,
     5_000_000usize,
     10_000_000usize,
     15_000_000usize,
-    22_000_000usize,
+    20_000_000usize,
+    25_000_000usize,
     30_000_000usize,
 ];
 
-const SIZES_PERF_REPLACE: [usize; 5] = [
+const SIZES_PERF_REPLACE: [usize; 7] = [
+    1_000_000usize,
     5_000_000usize,
     10_000_000usize,
     15_000_000usize,
-    22_000_000usize,
+    20_000_000usize,
+    25_000_000usize,
     30_000_000usize,
 ];
 
-const SIZES_PERF_MATCHING: [usize; 5] = [
+const SIZES_PERF_MATCHING: [usize; 7] = [
+    1_000_000usize,
     5_000_000usize,
     10_000_000usize,
     15_000_000usize,
-    22_000_000usize,
+    20_000_000usize,
+    25_000_000usize,
     30_000_000usize,
 ];
 
-const SIZES_PERF_COMBINED: [usize; 5] = [
+const SIZES_PERF_COMBINED: [usize; 7] = [
+    1_000_000usize,
     5_000_000usize,
     10_000_000usize,
     15_000_000usize,
-    22_000_000usize,
+    20_000_000usize,
+    25_000_000usize,
     30_000_000usize,
 ];
 
@@ -48,18 +64,16 @@ fn bench_perf_matching(c: &mut Criterion) {
     let mut group = c.benchmark_group("perf_order_matching");
     group.measurement_time(Duration::from_secs(5));
     group.warm_up_time(Duration::from_secs(1));
-    group.sample_size(20);
+    group.sample_size(SAMPLE_SIZE);
 
     for &num in &SIZES_PERF_MATCHING {
         let orders = simulate_order::make_realistic_orders(num, num as u64);
         group.throughput(Throughput::Elements(num as u64));
 
         group.bench_with_input(BenchmarkId::from_parameter(num), &num, |b, &_num| {
-            b.iter_custom(|iters| {
+            b.iter_custom(|_| {
                 let start = Instant::now();
-                for _ in 0..iters {
-                    insert_orders_once(&orders);
-                }
+                insert_orders_once(&orders);
                 start.elapsed()
             })
         });
@@ -72,7 +86,7 @@ fn bench_perf_cancel(c: &mut Criterion) {
     let mut group = c.benchmark_group("perf_order_cancel");
     group.measurement_time(Duration::from_secs(5));
     group.warm_up_time(Duration::from_secs(1));
-    group.sample_size(20);
+    group.sample_size(SAMPLE_SIZE);
 
     for &num in &SIZES_PERF_CANCEL {
         let mut book = OrderBook::<order_spec::OrderSpec>::default();
@@ -82,11 +96,10 @@ fn bench_perf_cancel(c: &mut Criterion) {
         group.throughput(Throughput::Elements(num as u64));
 
         group.bench_with_input(BenchmarkId::from_parameter(num), &num, |b, &_num| {
-            b.iter_custom(|iters| {
+            b.iter_custom(|_| {
+                insert_only(&mut book, &orders);
                 let start = Instant::now();
-                for _ in 0..iters {
-                    insert_then_cancel(&mut book, &orders);
-                }
+                cancel_only(&mut book, &orders);
                 start.elapsed()
             })
         });
@@ -99,19 +112,19 @@ fn bench_perf_replace(c: &mut Criterion) {
     let mut group = c.benchmark_group("perf_order_replace");
     group.measurement_time(Duration::from_secs(5));
     group.warm_up_time(Duration::from_secs(1));
-    group.sample_size(20);
+    group.sample_size(SAMPLE_SIZE);
 
     for &num in &SIZES_PERF_REPLACE {
+        let mut book = OrderBook::<order_spec::OrderSpec>::default();
         let orders = simulate_order::make_realistic_orders(num, num as u64 + 2);
         // Count both insert and replace operations
         group.throughput(Throughput::Elements((num as u64) * 2));
 
         group.bench_with_input(BenchmarkId::from_parameter(num), &num, |b, &_num| {
-            b.iter_custom(|iters| {
-                let start = Instant::now();
-                for _ in 0..iters {
-                    insert_then_replace_once(&orders);
-                }
+            b.iter_custom(|_| {
+                insert_only(&mut book, &orders);
+                let start: Instant = Instant::now();
+                replace_only(&mut book, &orders);
                 start.elapsed()
             })
         });
@@ -124,7 +137,7 @@ fn bench_perf_combine(c: &mut Criterion) {
     let mut group = c.benchmark_group("perf_order_combined");
     group.measurement_time(Duration::from_secs(5));
     group.warm_up_time(Duration::from_secs(1));
-    group.sample_size(20);
+    group.sample_size(SAMPLE_SIZE);
 
     // Chosen ratio: inserts always, replacements ~20%, cancels ~10%.
     // This models a heavy-insert workload with occasional modifications/cancels.
@@ -134,17 +147,26 @@ fn bench_perf_combine(c: &mut Criterion) {
     let can_f = (cancel_pct as f64) / 100.0;
 
     for &num in &SIZES_PERF_COMBINED {
+        let mut book = OrderBook::<OrderSpec>::with_capacity(num);
         let orders = simulate_order::make_realistic_orders(num, num as u64 + 3);
         let expected_ops = ((num as f64) * (1.0 + rep_f + can_f)).round() as u64;
         group.throughput(Throughput::Elements(expected_ops));
 
         group.bench_with_input(BenchmarkId::from_parameter(num), &num, |b, &_num| {
-            b.iter_custom(|iters| {
+            b.iter_custom(|_| {
+                // let region = Region::new(&GLOBAL);
                 let start = Instant::now();
-                for _ in 0..iters {
-                    insert_replace_cancel_once(&orders, replace_pct, cancel_pct, num as u64 + 4);
-                }
-                start.elapsed()
+                insert_replace_cancel_once(
+                    &mut book,
+                    &orders,
+                    replace_pct,
+                    cancel_pct,
+                    num as u64 + 4,
+                );
+                let elapsed = start.elapsed();
+                // println!("{:#?}", region.change());
+
+                elapsed
             })
         });
     }
@@ -193,6 +215,21 @@ fn insert_then_cancel(book: &mut OrderBook<OrderSpec>, orders: &[OrderSpec]) {
     }
 }
 
+fn replace_only(book: &mut OrderBook<OrderSpec>, orders: &[OrderSpec]) {
+    for order in orders {
+        let new_price = order.price + 10;
+        let quantity_delta = -50;
+        let _ = book.replace_order(order_book::ReplaceOrder {
+            order_id: order.id(),
+            new_price,
+            quantity_delta,
+        });
+    }
+    if let Some(err) = book.validate_cache().err() {
+        panic!("{:?}", err);
+    }
+}
+
 fn insert_then_replace_once(orders: &[OrderSpec]) {
     let mut book = OrderBook::<OrderSpec>::default();
     for order in orders {
@@ -213,12 +250,12 @@ fn insert_then_replace_once(orders: &[OrderSpec]) {
 }
 
 fn insert_replace_cancel_once(
+    book: &mut OrderBook<OrderSpec>,
     orders: &[OrderSpec],
     replace_pct: u32,
     cancel_pct: u32,
     rng_seed: u64,
 ) {
-    let mut book = OrderBook::<OrderSpec>::default();
     let mut rng = StdRng::seed_from_u64(rng_seed);
 
     for order in orders {

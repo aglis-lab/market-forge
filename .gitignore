@@ -5,3 +5,7 @@ temp/*
 !temp/.gitkeep
 tmp
 profile.json.gz
+.DS_Store
+
+doc/stats/*
+!doc/stats/.gitkeep
