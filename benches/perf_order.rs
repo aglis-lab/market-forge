@@ -14,12 +14,12 @@ const SIZES_PERF_CANCEL: [usize; 10] = [
     200_000usize,
     300_000usize,
     400_000usize,
-    500_000usize,
     600_000usize,
-    700_000usize,
     800_000usize,
-    900_000usize,
     1_000_000usize,
+    2_000_000usize,
+    5_000_000usize,
+    10_000_000usize,
 ];
 
 const SIZES_PERF_REPLACE: [usize; 10] = [
@@ -27,15 +27,15 @@ const SIZES_PERF_REPLACE: [usize; 10] = [
     200_000usize,
     300_000usize,
     400_000usize,
-    500_000usize,
     600_000usize,
-    700_000usize,
     800_000usize,
-    900_000usize,
     1_000_000usize,
+    2_000_000usize,
+    5_000_000usize,
+    10_000_000usize,
 ];
 
-const SIZES_PERF_INSERT: [usize; 13] = [
+const SIZES_PERF_INSERT: [usize; 12] = [
     100_000usize,
     200_000usize,
     300_000usize,
@@ -43,12 +43,11 @@ const SIZES_PERF_INSERT: [usize; 13] = [
     600_000usize,
     800_000usize,
     1_000_000usize,
+    2_000_000usize,
     5_000_000usize,
     10_000_000usize,
     20_000_000usize,
     30_000_000usize,
-    40_000_000usize,
-    50_000_000usize,
 ];
 
 const SIZES_PERF_COMBINED: [usize; 10] = [
@@ -56,12 +55,12 @@ const SIZES_PERF_COMBINED: [usize; 10] = [
     200_000usize,
     300_000usize,
     400_000usize,
-    500_000usize,
     600_000usize,
-    700_000usize,
     800_000usize,
-    900_000usize,
     1_000_000usize,
+    2_000_000usize,
+    5_000_000usize,
+    10_000_000usize,
 ];
 
 fn bench_perf_matching(c: &mut Criterion) {
