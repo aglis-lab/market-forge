@@ -1,20 +1,13 @@
 use std::vec;
 use std::{fs, path::Path};
 
-use market_forge::core::order_spec::OrderSpec;
+use market_forge::core::order::OrderSpec;
 use rkyv::{Archive, Deserialize, Serialize};
 
 #[derive(Archive, Deserialize, Serialize, Debug, Clone, PartialEq)]
 #[rkyv(compare(PartialEq), derive(Debug))]
-struct OrderWithSymbol {
-    pub symbol: String,
-    pub order: OrderSpec,
-}
-
-#[derive(Archive, Deserialize, Serialize, Debug, Clone, PartialEq)]
-#[rkyv(compare(PartialEq), derive(Debug))]
 struct Packet {
-    orders: Vec<OrderWithSymbol>,
+    orders: Vec<OrderSpec>,
 }
 
 #[tokio::main]
@@ -27,15 +20,6 @@ async fn main() {
     }
 
     let socket_path = format!("{}/market_forge.sock", folder);
-
-    // Remove any stale socket file from previous runs so bind succeeds.
-    {
-        let p = Path::new(&socket_path);
-        if p.exists() {
-            let _ = fs::remove_file(p);
-        }
-    }
-
     log::debug!("Starting socket example with socket path: {}", socket_path);
 
     let _ = accept(socket_path.clone()).await;
@@ -48,8 +32,12 @@ async fn main() {
 }
 
 async fn accept(socket_path: String) -> anyhow::Result<()> {
+    if Path::new(&socket_path).exists() {
+        let _ = fs::remove_file(&socket_path);
+    }
+
     tokio::task::spawn(async move {
-        let listener = market_forge::socket::Listener::bind(socket_path.as_ref())
+        let listener = market_forge::network::socket::Listener::bind(socket_path.as_ref())
             .expect("Failed to bind socket listener");
 
         let mut stream = listener
@@ -60,15 +48,18 @@ async fn accept(socket_path: String) -> anyhow::Result<()> {
         log::debug!("Listening on {}, waiting for connections...", socket_path);
 
         loop {
-            match stream.recv().await {
-                Ok(packet) => log::debug!(
-                    "Received packet: {:?}",
-                    rkyv::from_bytes::<Packet, rkyv::rancor::Error>(&packet)
-                ),
+            let packet = match stream.recv().await {
+                Ok(packet) => rkyv::from_bytes::<Packet, rkyv::rancor::Error>(&packet),
                 Err(e) => {
                     log::error!("Connection closed: {}", e);
                     break;
                 }
+            };
+
+            if let Ok(packet) = packet {
+                log::debug!("Received packet: {:?}", packet);
+            } else {
+                log::error!("Failed to deserialize packet: {}", packet.err().unwrap());
             }
         }
     });
@@ -79,7 +70,7 @@ async fn accept(socket_path: String) -> anyhow::Result<()> {
 async fn send(socket_path: String) -> anyhow::Result<()> {
     tokio::task::spawn(async move {
         let mut socket = retry(
-            || market_forge::socket::Stream::connect(socket_path.as_ref()),
+            || market_forge::network::socket::Stream::connect(socket_path.as_ref()),
             3,
             std::time::Duration::from_secs(1),
         )
@@ -91,23 +82,25 @@ async fn send(socket_path: String) -> anyhow::Result<()> {
             interval.tick().await;
 
             let val = vec![
-                OrderWithSymbol {
-                    symbol: "BTCUSD".to_string(),
-                    order: market_forge::core::order_spec::OrderSpec::limit_price(
-                        1,
-                        market_forge::core::order::OrderSide::Buy,
-                        1000,
-                        10,
-                    ),
-                },
-                OrderWithSymbol {
-                    symbol: "ETHUSD".to_string(),
-                    order: market_forge::core::order_spec::OrderSpec::market(
-                        2,
-                        market_forge::core::order::OrderSide::Sell,
-                        5,
-                    ),
-                },
+                market_forge::core::order::OrderSpec::limit_price(
+                    1,
+                    1,
+                    market_forge::core::order::OrderSide::Buy,
+                    1000,
+                    10,
+                ),
+                market_forge::core::order::OrderSpec::market(
+                    1,
+                    2,
+                    market_forge::core::order::OrderSide::Sell,
+                    5,
+                ),
+                market_forge::core::order::OrderSpec::market(
+                    1,
+                    2,
+                    market_forge::core::order::OrderSide::Sell,
+                    5,
+                ),
             ];
 
             let val_bytes = match rkyv::to_bytes::<rkyv::rancor::Error>(&Packet { orders: val }) {

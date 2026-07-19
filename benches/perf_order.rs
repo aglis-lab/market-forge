@@ -5,8 +5,8 @@ use fake::{
 };
 use market_forge::core::{
     order::Order,
+    order::{self, OrderSpec},
     order_book::{self, OrderBook},
-    order_spec::{self, OrderSpec},
 };
 use std::time::{Duration, Instant};
 
@@ -87,7 +87,7 @@ fn bench_perf_matching(c: &mut Criterion) {
     group.sample_size(SAMPLE_SIZE);
 
     for &num in &SIZES_PERF_MATCHING {
-        let orders = simulate_order::make_realistic_orders(num, num as u64);
+        let orders = simulate_order::make_realistic_orders(num, 10, num as u64);
         group.throughput(Throughput::Elements(num as u64));
 
         group.bench_with_input(BenchmarkId::from_parameter(num), &num, |b, &_num| {
@@ -111,8 +111,8 @@ fn bench_perf_cancel(c: &mut Criterion) {
     group.sample_size(SAMPLE_SIZE);
 
     for &num in &SIZES_PERF_CANCEL {
-        let mut book = OrderBook::<order_spec::OrderSpec>::default();
-        let orders = simulate_order::make_realistic_orders(num, num as u64 + 1);
+        let mut book = OrderBook::<order::OrderSpec>::default();
+        let orders = simulate_order::make_realistic_orders(num, 10, num as u64 + 1);
 
         // Count both insert and cancel operations
         group.throughput(Throughput::Elements(num as u64));

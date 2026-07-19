@@ -20,6 +20,10 @@ pub struct OrderSpec {
     // Quantity of the order
     pub quantity: Quantity,
 
+    // Symbol of the order (e.g., "AAPL" -> 1, "BTCUSD" -> 2)
+    // We use u32 for the symbol for performance reasons
+    pub symbol_id: u32,
+
     // Side of the order (Buy or Sell)
     pub order_side: OrderSide,
 
@@ -33,12 +37,14 @@ pub struct OrderSpec {
 impl OrderSpec {
     #[inline(always)]
     pub fn limit_price(
+        symbol_id: u32,
         id: OrderId,
         order_side: OrderSide,
         price: Price,
         quantity: Quantity,
     ) -> Self {
         Self {
+            symbol_id: symbol_id,
             id,
             order_side,
             price,
@@ -51,6 +57,7 @@ impl OrderSpec {
     #[inline(always)]
     pub fn cancel(id: OrderId, order_side: OrderSide, price: Price) -> Self {
         Self {
+            symbol_id: 0, // NOT BEING USED
             id,
             order_side,
             price,
@@ -63,6 +70,7 @@ impl OrderSpec {
     #[inline(always)]
     pub fn replace(id: OrderId, order_side: OrderSide, price: Price) -> Self {
         Self {
+            symbol_id: 0, // NOT BEING USED
             id,
             order_side,
             price,
@@ -73,8 +81,9 @@ impl OrderSpec {
     }
 
     #[inline(always)]
-    pub fn market(id: OrderId, order_side: OrderSide, quantity: Quantity) -> Self {
+    pub fn market(symbol_id: u32, id: OrderId, order_side: OrderSide, quantity: Quantity) -> Self {
         Self {
+            symbol_id,
             id: id,
             order_side,
             quantity,
@@ -87,19 +96,25 @@ impl OrderSpec {
     // Copy TimeInForce
     #[inline(always)]
     pub fn with_time_in_force(mut self, time_in_force: TimeInForce) -> Self {
-        self.set_time_in_force(time_in_force);
+        self.time_in_force = time_in_force;
         return self;
     }
 
     #[inline(always)]
     pub fn with_price(mut self, new_price: Price) -> Self {
-        self.set_price(new_price);
+        self.price = new_price;
         return self;
     }
 
     #[inline(always)]
     pub fn with_quantity(mut self, new_quantity: Quantity) -> Self {
-        self.set_quantity(new_quantity);
+        self.quantity = new_quantity;
+        return self;
+    }
+
+    #[inline(always)]
+    pub fn with_symbol_id(mut self, symbol_id: u32) -> Self {
+        self.symbol_id = symbol_id;
         return self;
     }
 }
@@ -160,30 +175,32 @@ impl Order for OrderSpec {
         self.time_in_force = time_in_force;
     }
 
+    #[inline(always)]
     fn is_market(&self) -> bool {
-        self.order_type.is_market()
+        self.order_type == OrderType::Market
     }
 
+    #[inline(always)]
     fn is_limit_price(&self) -> bool {
-        self.order_type.is_limit()
+        self.order_type == OrderType::Limit
     }
 
     // Good Till Cancel
     #[inline(always)]
     fn good_till_cancel(&self) -> bool {
-        return self.time_in_force() == TimeInForce::GTC;
+        return self.time_in_force == TimeInForce::GTC;
     }
 
     // is immediate or cancel
     #[inline(always)]
     fn is_immediate_or_cancel(&self) -> bool {
-        return self.time_in_force() == TimeInForce::IOC;
+        return self.time_in_force == TimeInForce::IOC;
     }
 
     // is fill or kill
     #[inline(always)]
     fn is_fill_or_kill(&self) -> bool {
-        return self.time_in_force() == TimeInForce::FOK;
+        return self.time_in_force == TimeInForce::FOK;
     }
 }
 
@@ -193,7 +210,7 @@ mod tests {
     use std::mem::size_of;
 
     #[test]
-    fn show_order_spec_size() {
+    fn show_order_size() {
         let size = size_of::<OrderSpec>();
         // Print size; run tests with `-- --nocapture` to see this output.
         println!("OrderSpec size: {} bytes", size);

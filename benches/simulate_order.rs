@@ -1,4 +1,4 @@
-use market_forge::core::{order, order_spec};
+use market_forge::core::order;
 use rand::rngs::StdRng;
 use rand::{RngExt, SeedableRng};
 
@@ -8,7 +8,11 @@ use rand::{RngExt, SeedableRng};
 ///   - Order sizes follow power-law (many small, few large)
 ///   - Realistic TIF distribution (GTC dominant)
 ///   - Proper bid/ask spread (1–3 ticks for liquid equities)
-pub fn make_realistic_orders(num_to_try: usize, seed: u64) -> Vec<order_spec::OrderSpec> {
+pub fn make_realistic_orders(
+    num_to_try: usize,
+    num_symbol: usize,
+    seed: u64,
+) -> Vec<order::OrderSpec> {
     let mut orders = Vec::with_capacity(num_to_try);
     let mut rng = StdRng::seed_from_u64(seed);
 
@@ -59,7 +63,8 @@ pub fn make_realistic_orders(num_to_try: usize, seed: u64) -> Vec<order_spec::Or
             _ => order::TimeInForce::FOK,
         };
 
-        let order = order_spec::OrderSpec::limit_price(
+        let order = order::OrderSpec::limit_price(
+            rand::random_range(0..num_symbol) as u32, // symbol (cycling through num_symbol symbols)
             i as order::OrderId,
             side,
             price as order::Price,
@@ -75,7 +80,7 @@ pub fn make_realistic_orders(num_to_try: usize, seed: u64) -> Vec<order_spec::Or
 }
 
 /// Create `num_to_try` deterministic orders for benchmarking.
-pub fn make_random_orders(num_to_try: usize, seed: u64) -> Vec<order_spec::OrderSpec> {
+pub fn make_random_orders(num_to_try: usize, seed: u64) -> Vec<order::OrderSpec> {
     let mut orders = Vec::with_capacity(num_to_try);
     let mut rng = StdRng::seed_from_u64(seed);
 
@@ -97,9 +102,15 @@ pub fn make_random_orders(num_to_try: usize, seed: u64) -> Vec<order_spec::Order
             _ => order::TimeInForce::GTC,
         };
 
-        let order = order_spec::OrderSpec::limit_price(i as order::OrderId, side, price, qty)
-            .with_time_in_force(time_in_force)
-            .clone();
+        let order = order::OrderSpec::limit_price(
+            (i % 10) as u32, // symbol (10 symbols cycling)
+            i as order::OrderId,
+            side,
+            price,
+            qty,
+        )
+        .with_time_in_force(time_in_force)
+        .clone();
 
         orders.push(order);
     }

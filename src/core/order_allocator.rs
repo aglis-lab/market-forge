@@ -205,7 +205,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::core::order_spec::OrderSpec;
+    use crate::core::order::OrderSpec;
 
     use super::*;
     use std::mem::size_of;
