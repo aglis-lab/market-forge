@@ -10,7 +10,7 @@ use market_forge::core::{
 };
 use std::time::{Duration, Instant};
 
-use stats_alloc::{INSTRUMENTED_SYSTEM, Region, StatsAlloc};
+use stats_alloc::{INSTRUMENTED_SYSTEM, StatsAlloc};
 use std::alloc::System;
 
 mod simulate_order;
@@ -20,43 +20,63 @@ static GLOBAL: &StatsAlloc<System> = &INSTRUMENTED_SYSTEM;
 
 const SAMPLE_SIZE: usize = 10;
 
-const SIZES_PERF_CANCEL: [usize; 7] = [
+const SIZES_PERF_CANCEL: [usize; 12] = [
+    100_000usize,
+    200_000usize,
+    300_000usize,
+    400_000usize,
+    600_000usize,
+    800_000usize,
     1_000_000usize,
+    2_000_000usize,
     5_000_000usize,
     10_000_000usize,
-    15_000_000usize,
     20_000_000usize,
-    25_000_000usize,
     30_000_000usize,
 ];
 
-const SIZES_PERF_REPLACE: [usize; 7] = [
+const SIZES_PERF_REPLACE: [usize; 12] = [
+    100_000usize,
+    200_000usize,
+    300_000usize,
+    400_000usize,
+    600_000usize,
+    800_000usize,
     1_000_000usize,
+    2_000_000usize,
     5_000_000usize,
     10_000_000usize,
-    15_000_000usize,
     20_000_000usize,
-    25_000_000usize,
     30_000_000usize,
 ];
 
-const SIZES_PERF_MATCHING: [usize; 7] = [
+const SIZES_PERF_MATCHING: [usize; 12] = [
+    100_000usize,
+    200_000usize,
+    300_000usize,
+    400_000usize,
+    600_000usize,
+    800_000usize,
     1_000_000usize,
+    2_000_000usize,
     5_000_000usize,
     10_000_000usize,
-    15_000_000usize,
     20_000_000usize,
-    25_000_000usize,
     30_000_000usize,
 ];
 
-const SIZES_PERF_COMBINED: [usize; 7] = [
+const SIZES_PERF_COMBINED: [usize; 12] = [
+    100_000usize,
+    200_000usize,
+    300_000usize,
+    400_000usize,
+    600_000usize,
+    800_000usize,
     1_000_000usize,
+    2_000_000usize,
     5_000_000usize,
     10_000_000usize,
-    15_000_000usize,
     20_000_000usize,
-    25_000_000usize,
     30_000_000usize,
 ];
 
@@ -71,9 +91,11 @@ fn bench_perf_matching(c: &mut Criterion) {
         group.throughput(Throughput::Elements(num as u64));
 
         group.bench_with_input(BenchmarkId::from_parameter(num), &num, |b, &_num| {
-            b.iter_custom(|_| {
+            b.iter_custom(|iters| {
                 let start = Instant::now();
-                insert_orders_once(&orders);
+                for _ in 0..iters {
+                    insert_orders_once(&orders);
+                }
                 start.elapsed()
             })
         });
@@ -96,7 +118,7 @@ fn bench_perf_cancel(c: &mut Criterion) {
         group.throughput(Throughput::Elements(num as u64));
 
         group.bench_with_input(BenchmarkId::from_parameter(num), &num, |b, &_num| {
-            b.iter_custom(|_| {
+            b.iter_custom(|iters| {
                 insert_only(&mut book, &orders);
                 let start = Instant::now();
                 cancel_only(&mut book, &orders);
@@ -121,11 +143,15 @@ fn bench_perf_replace(c: &mut Criterion) {
         group.throughput(Throughput::Elements((num as u64) * 2));
 
         group.bench_with_input(BenchmarkId::from_parameter(num), &num, |b, &_num| {
-            b.iter_custom(|_| {
-                insert_only(&mut book, &orders);
-                let start: Instant = Instant::now();
-                replace_only(&mut book, &orders);
-                start.elapsed()
+            b.iter_custom(|iters| {
+                let mut total_elapsed = Duration::new(0, 0);
+                for _ in 0..iters {
+                    insert_only(&mut book, &orders);
+                    let start: Instant = Instant::now();
+                    replace_only(&mut book, &orders);
+                    total_elapsed += start.elapsed();
+                }
+                total_elapsed
             })
         });
     }
@@ -153,20 +179,18 @@ fn bench_perf_combine(c: &mut Criterion) {
         group.throughput(Throughput::Elements(expected_ops));
 
         group.bench_with_input(BenchmarkId::from_parameter(num), &num, |b, &_num| {
-            b.iter_custom(|_| {
-                // let region = Region::new(&GLOBAL);
+            b.iter_custom(|iters| {
                 let start = Instant::now();
-                insert_replace_cancel_once(
-                    &mut book,
-                    &orders,
-                    replace_pct,
-                    cancel_pct,
-                    num as u64 + 4,
-                );
-                let elapsed = start.elapsed();
-                // println!("{:#?}", region.change());
-
-                elapsed
+                for _ in 0..iters {
+                    insert_replace_cancel_once(
+                        &mut book,
+                        &orders,
+                        replace_pct,
+                        cancel_pct,
+                        num as u64 + 4,
+                    );
+                }
+                start.elapsed()
             })
         });
     }
