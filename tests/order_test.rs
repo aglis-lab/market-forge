@@ -3,7 +3,7 @@ mod tests {
     use std::mem;
 
     use market_forge::core::{
-        order::{Order, OrderSide, TimeInForce},
+        order::{OrderSide, TimeInForce},
         order_book::OrderBook,
         order_error::OrderError,
         order_match::OrderMatch,

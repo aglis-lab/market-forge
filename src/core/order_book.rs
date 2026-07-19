@@ -143,7 +143,9 @@ impl<T: Order> OrderBook<T> {
         self.order_allocator.try_remove(order_meta.allocator_idx());
 
         // delete from btreemap
-        let orders = self.get_orders_mut(order).unwrap();
+        let orders = self
+            .get_orders_mut(order.is_buy(), &new_order.price())
+            .unwrap();
         orders.remove_index(order_index);
 
         // Change Orders Quantity
@@ -173,7 +175,9 @@ impl<T: Order> OrderBook<T> {
             .ok_or(OrderError::SlabFailedRemoveOrder)?;
 
         // Get mutable orders
-        let orders = self.get_orders_mut(&slab_order).unwrap();
+        let orders = self
+            .get_orders_mut(slab_order.is_buy(), &slab_order.price())
+            .unwrap();
 
         // Remove Order at orders
         orders.remove_index(order_index);
@@ -183,7 +187,7 @@ impl<T: Order> OrderBook<T> {
 
         // Check if no order leave at orders
         if orders.len() == 0 {
-            self.remove_orders(slab_order.is_buy(), &order.price());
+            self.remove_orders(slab_order.is_buy(), &slab_order.price());
         }
 
         // Decrease Total Quantity
@@ -274,77 +278,79 @@ impl<T: Order> OrderBook<T> {
             }
         }
 
-        // Get orders for the top price
-        let orders = {
-            if order_side.is_buy() {
-                self.asks.get_orders_mut(&top_price).unwrap()
+        // Get orders for the top price directly without second lookup - O(1) instead of O(log n)
+        let (min_total_quantity, should_remove) = {
+            let orders = if order_side.is_buy() {
+                self.asks.peek_mut().unwrap().1
             } else {
-                self.bids
-                    .get_orders_mut(&ReverseOrd::new(top_price))
-                    .unwrap()
+                self.bids.peek_mut().unwrap().1
+            };
+
+            // Set Order and total quantity
+            let min_total_qty = cmp::min(orders.orders_quantity(), order_quantity);
+            orders.set_orders_quantity(orders.orders_quantity() - min_total_qty);
+
+            while orders.len() > 0 {
+                let front_order_meta = orders.peek_front().unwrap();
+
+                assert!(
+                    order_quantity > 0,
+                    "Order quantity should be greater than 0"
+                );
+                assert!(
+                    self.order_allocator
+                        .contains(front_order_meta.allocator_idx()),
+                    "Order allocator should contain the front index"
+                );
+
+                let (front_order, order) = self
+                    .order_allocator
+                    .get2_mut(front_order_meta.allocator_idx(), allocator_idx)
+                    .unwrap();
+
+                // Match the order with the front order
+                let min_quantity = cmp::min(front_order.quantity(), order_quantity);
+                front_order.set_quantity(front_order.quantity() - min_quantity);
+                order_quantity -= min_quantity;
+
+                // Add the match result to the order matches
+                order_matches.push(OrderMatch {
+                    order_side: order.order_side(),
+                    price: top_price,
+                    quantity: min_quantity,
+                    match_from_id: order.id(),
+                    match_to_id: front_order.id(),
+                });
+
+                // If the front order is fully matched, remove it from the queue
+                if front_order.quantity() == 0 {
+                    let order_meta = orders.pop_front().unwrap();
+
+                    // Remove the order from the allocator
+                    self.order_allocator.try_remove(order_meta.allocator_idx());
+                }
+
+                // If the result order is fully matched, return None
+                if order_quantity == 0 {
+                    break;
+                }
             }
-        };
 
-        // Set Order and total quantity
-        let min_total_quantity = cmp::min(orders.orders_quantity(), order_quantity);
-        orders.set_orders_quantity(orders.orders_quantity() - min_total_quantity);
+            // Capture decision to remove BEFORE dropping the mutable reference
+            (min_total_qty, orders.orders_quantity() == 0)
+        }; // mutable orders reference dropped here
 
-        while orders.len() > 0 {
-            let front_order_meta = orders.peek_front().unwrap();
-
-            assert!(
-                order_quantity > 0,
-                "Order quantity should be greater than 0"
-            );
-            assert!(
-                self.order_allocator
-                    .contains(front_order_meta.allocator_idx()),
-                "Order allocator should contain the front index"
-            );
-
-            let (front_order, order) = self
-                .order_allocator
-                .get2_mut(front_order_meta.allocator_idx(), allocator_idx)
-                .unwrap();
-
-            // Match the order with the front order
-            let min_quantity = cmp::min(front_order.quantity(), order_quantity);
-            front_order.set_quantity(front_order.quantity() - min_quantity);
-            order_quantity -= min_quantity;
-
-            // Add the match result to the order matches
-            order_matches.push(OrderMatch {
-                order_side: order.order_side(),
-                price: top_price,
-                quantity: min_quantity,
-                match_from_id: order.id(),
-                match_to_id: front_order.id(),
-            });
-
-            // If the front order is fully matched, remove it from the queue
-            if front_order.quantity() == 0 {
-                let order_meta = orders.pop_front().unwrap();
-
-                // Remove the order from the allocator
-                self.order_allocator.try_remove(order_meta.allocator_idx());
-            }
-
-            // If the result order is fully matched, return None
-            if order_quantity == 0 {
-                break;
-            }
-        }
-
-        // Remove the order from the book if it has no remaining quantity
-        if orders.orders_quantity() == 0 {
+        // Now safe to call remove_orders without borrow conflict
+        if should_remove {
             self.remove_orders(order_side.is_sell(), &top_price);
         }
-
-        self.decrease_total_quantity(order_side.is_sell(), min_total_quantity);
         self.order_allocator
             .get_mut(allocator_idx)
             .unwrap()
             .set_quantity(order_quantity);
+
+        self.decrease_total_quantity(order_side.is_sell(), min_total_quantity);
+
         if order_quantity == 0 {
             return None;
         }
@@ -362,11 +368,11 @@ impl<T: Order> OrderBook<T> {
     }
 
     #[inline(always)]
-    fn get_orders_mut(&mut self, order: &T) -> Option<&mut OrderQueue> {
-        if order.is_buy() {
-            return self.bids.get_orders_mut(&ReverseOrd::new(order.price()));
+    fn get_orders_mut(&mut self, is_bids: bool, price: &Price) -> Option<&mut OrderQueue> {
+        if is_bids {
+            return self.bids.get_orders_mut(&ReverseOrd::new(*price));
         } else {
-            return self.asks.get_orders_mut(&order.price());
+            return self.asks.get_orders_mut(price);
         }
     }
 

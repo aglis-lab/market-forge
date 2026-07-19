@@ -3,39 +3,45 @@ use fake::{
     Rng,
     rand::{SeedableRng, rngs::StdRng},
 };
-use market_forge::core::{
-    order::{Order, OrderId, OrderSide, Price, Quantity, TimeInForce},
-    order_book::OrderBook,
-    order_spec::OrderSpec,
-};
+use market_forge::core::{order_book::OrderBook, order_spec::OrderSpec};
 use std::time::{Duration, Instant};
+mod simulate_order;
 
 const SAMPLE_SIZE: usize = 10;
 
-const SIZES_PERF_CANCEL: [usize; 6] = [
+const SIZES_PERF_CANCEL: [usize; 10] = [
     100_000usize,
-    250_000usize,
+    200_000usize,
+    300_000usize,
     400_000usize,
+    500_000usize,
     600_000usize,
     700_000usize,
+    800_000usize,
+    900_000usize,
     1_000_000usize,
 ];
 
-const SIZES_PERF_REPLACE: [usize; 6] = [
+const SIZES_PERF_REPLACE: [usize; 10] = [
     100_000usize,
-    250_000usize,
+    200_000usize,
+    300_000usize,
     400_000usize,
+    500_000usize,
     600_000usize,
     700_000usize,
+    800_000usize,
+    900_000usize,
     1_000_000usize,
 ];
 
-const SIZES_PERF_INSERT: [usize; 12] = [
+const SIZES_PERF_INSERT: [usize; 13] = [
     100_000usize,
-    250_000usize,
+    200_000usize,
+    300_000usize,
     400_000usize,
     600_000usize,
-    700_000usize,
+    800_000usize,
     1_000_000usize,
     5_000_000usize,
     10_000_000usize,
@@ -45,23 +51,27 @@ const SIZES_PERF_INSERT: [usize; 12] = [
     50_000_000usize,
 ];
 
-const SIZES_PERF_COMBINED: [usize; 6] = [
+const SIZES_PERF_COMBINED: [usize; 10] = [
     100_000usize,
-    250_000usize,
+    200_000usize,
+    300_000usize,
     400_000usize,
+    500_000usize,
     600_000usize,
     700_000usize,
+    800_000usize,
+    900_000usize,
     1_000_000usize,
 ];
 
-fn bench_perf_insert(c: &mut Criterion) {
-    let mut group = c.benchmark_group("perf_order_insert");
+fn bench_perf_matching(c: &mut Criterion) {
+    let mut group = c.benchmark_group("perf_order_matching");
     group.measurement_time(Duration::from_secs(5));
     group.warm_up_time(Duration::from_secs(1));
     group.sample_size(SAMPLE_SIZE);
 
     for &num in &SIZES_PERF_INSERT {
-        let orders = make_orders(num, num as u64);
+        let orders = simulate_order::make_realistic_orders(num, num as u64);
         group.throughput(Throughput::Elements(num as u64));
 
         group.bench_with_input(BenchmarkId::from_parameter(num), &num, |b, &_num| {
@@ -85,7 +95,7 @@ fn bench_perf_cancel(c: &mut Criterion) {
     group.sample_size(SAMPLE_SIZE);
 
     for &num in &SIZES_PERF_CANCEL {
-        let orders = make_orders(num, num as u64 + 1);
+        let orders = simulate_order::make_realistic_orders(num, num as u64 + 1);
         // Count both insert and cancel operations
         group.throughput(Throughput::Elements((num as u64) * 2));
 
@@ -110,7 +120,7 @@ fn bench_perf_replace(c: &mut Criterion) {
     group.sample_size(SAMPLE_SIZE);
 
     for &num in &SIZES_PERF_REPLACE {
-        let orders = make_orders(num, num as u64 + 2);
+        let orders = simulate_order::make_realistic_orders(num, num as u64 + 2);
         // Count both insert and replace operations
         group.throughput(Throughput::Elements((num as u64) * 2));
 
@@ -142,7 +152,7 @@ fn bench_perf_combine(c: &mut Criterion) {
     let can_f = (cancel_pct as f64) / 100.0;
 
     for &num in &SIZES_PERF_COMBINED {
-        let orders = make_orders(num, num as u64 + 3);
+        let orders = simulate_order::make_realistic_orders(num, num as u64 + 3);
         let expected_ops = ((num as f64) * (1.0 + rep_f + can_f)).round() as u64;
         group.throughput(Throughput::Elements(expected_ops));
 
@@ -158,39 +168,6 @@ fn bench_perf_combine(c: &mut Criterion) {
     }
 
     group.finish();
-}
-
-/// Create `num_to_try` deterministic orders for benchmarking.
-fn make_orders(num_to_try: usize, seed: u64) -> Vec<OrderSpec> {
-    let mut orders = Vec::with_capacity(num_to_try);
-    let mut rng = StdRng::seed_from_u64(seed);
-
-    for i in 0..num_to_try {
-        let is_buy = i % 2 == 0;
-        let delta = if is_buy { 1880 } else { 1884 };
-        let multiply = if is_buy { 0 } else { 1 };
-        let price = (delta + (rng.random_range(0..1000) * multiply)) as Price;
-        let qty = ((rng.random_range(0..1000) + 1) * 100) as Quantity;
-        let side = if is_buy {
-            OrderSide::Buy
-        } else {
-            OrderSide::Sell
-        };
-
-        let time_in_force = match rng.random_range(0..3) {
-            0 => TimeInForce::IOC,
-            1 => TimeInForce::FOK,
-            _ => TimeInForce::GTC,
-        };
-
-        let order = OrderSpec::limit_price(i as OrderId, side, price, qty)
-            .with_time_in_force(time_in_force)
-            .clone();
-
-        orders.push(order);
-    }
-
-    orders
 }
 
 fn insert_orders_once(orders: &[OrderSpec]) {
@@ -267,7 +244,7 @@ fn insert_replace_cancel_once(
 
 criterion_group!(
     benches,
-    bench_perf_insert,
+    bench_perf_matching,
     bench_perf_cancel,
     bench_perf_replace,
     bench_perf_combine

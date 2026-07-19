@@ -5,3 +5,5 @@ temp/*
 !temp/.gitkeep
 tmp
 profile.json.gz
+
+doc/

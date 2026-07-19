@@ -92,6 +92,12 @@ impl OrderSpec {
             execution_condition: ExecutionCondition::None, // Default to None
         }
     }
+
+    #[inline(always)]
+    pub fn with_time_in_force(mut self, time_in_force: TimeInForce) -> Self {
+        self.time_in_force = time_in_force;
+        self
+    }
 }
 
 impl Order for OrderSpec {
