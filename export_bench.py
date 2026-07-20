@@ -27,12 +27,20 @@ for path in glob.glob("target/criterion/**/new/estimates.json", recursive=True):
     std_ns  = est["std_dev"]["point_estimate"]
     n       = int(param)
 
+    # Apply throughput multiplier based on benchmark type
+    multiplier = 1.0
+    if group == "perf_order_replace":
+        multiplier = 2.0  # insert + replace
+    elif group == "perf_order_combined":
+        multiplier = 1.3  # insert + 20% replace + 10% cancel
+
+    total_ops = n * multiplier
     groups[group].append({
         "n":           n,
         "duration_ms": round(mean_ns / 1e6, 2),        # total bench duration
-        "latency_ns":  f"{round(mean_ns / n, 6):.6f}",           # per-order latency
-        "std_ns":      round(std_ns / n, 3),             # per-order std dev
-        "throughput":  round(n / (mean_ns / 1e9) / 1e6, 3),  # Melem/s
+        "latency_ns":  f"{round(mean_ns / total_ops, 6):.6f}",           # per-operation latency
+        "std_ns":      round(std_ns / total_ops, 3),             # per-operation std dev
+        "throughput":  round(total_ops * 1e9 / mean_ns / 1e6, 3),  # Melem/s
     })
 
 os.makedirs("doc/stats", exist_ok=True)
