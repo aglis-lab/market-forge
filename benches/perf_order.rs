@@ -94,15 +94,17 @@ fn bench_perf_cancel(c: &mut Criterion) {
     group.sample_size(SAMPLE_SIZE);
 
     for &num in &SIZES_PERF_CANCEL {
+        let mut book = OrderBook::<OrderSpec>::default();
         let orders = simulate_order::make_realistic_orders(num, num as u64 + 1);
-        // Count both insert and cancel operations
-        group.throughput(Throughput::Elements((num as u64) * 2));
+        // Measure cancel operations only
+        group.throughput(Throughput::Elements(num as u64));
 
         group.bench_with_input(BenchmarkId::from_parameter(num), &num, |b, &_num| {
             b.iter_custom(|iters| {
+                insert_only(&mut book, &orders);
                 let start = Instant::now();
                 for _ in 0..iters {
-                    insert_then_cancel_once(&orders);
+                    cancel_only(&mut book, &orders);
                 }
                 start.elapsed()
             })
@@ -119,15 +121,17 @@ fn bench_perf_replace(c: &mut Criterion) {
     group.sample_size(SAMPLE_SIZE);
 
     for &num in &SIZES_PERF_REPLACE {
+        let mut book = OrderBook::<OrderSpec>::default();
         let orders = simulate_order::make_realistic_orders(num, num as u64 + 2);
-        // Count both insert and replace operations
-        group.throughput(Throughput::Elements((num as u64) * 2));
+        // Measure replace operations only
+        group.throughput(Throughput::Elements(num as u64));
 
         group.bench_with_input(BenchmarkId::from_parameter(num), &num, |b, &_num| {
             b.iter_custom(|iters| {
+                insert_only(&mut book, &orders);
                 let start = Instant::now();
                 for _ in 0..iters {
-                    insert_then_replace_once(&orders);
+                    replace_only(&mut book, &orders);
                 }
                 start.elapsed()
             })
@@ -167,6 +171,39 @@ fn bench_perf_combine(c: &mut Criterion) {
     }
 
     group.finish();
+}
+
+fn insert_only(book: &mut OrderBook<OrderSpec>, orders: &[OrderSpec]) {
+    for order in orders {
+        let _ = book.insert_order(order);
+    }
+    if let Some(err) = book.validate_cache().err() {
+        panic!("{:?}", err);
+    }
+}
+
+fn cancel_only(book: &mut OrderBook<OrderSpec>, orders: &[OrderSpec]) {
+    for order in orders {
+        let _ = book.cancel_order(&OrderSpec::cancel(order.id, order.order_side, order.price));
+    }
+    if let Some(err) = book.validate_cache().err() {
+        panic!("{:?}", err);
+    }
+}
+
+fn replace_only(book: &mut OrderBook<OrderSpec>, orders: &[OrderSpec]) {
+    for order in orders {
+        let new_price = order.price + 10;
+        let quantity_delta = -50;
+        let _ = book.replace_order(
+            &OrderSpec::replace(order.id, order.order_side, order.price),
+            quantity_delta,
+            new_price,
+        );
+    }
+    if let Some(err) = book.validate_cache().err() {
+        panic!("{:?}", err);
+    }
 }
 
 fn insert_orders_once(orders: &[OrderSpec]) {
